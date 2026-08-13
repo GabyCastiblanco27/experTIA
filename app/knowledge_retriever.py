@@ -359,7 +359,19 @@ def buscar_conocimientos(
                         recurso["descripcion"]
                 })
 
+             # =====================================================
+            # RECURSOS EN FORMATO TEXTO
+            # =====================================================
 
+        recursos_texto = ""
+
+        for recurso in recursos:
+
+            recursos_texto += (
+                f"📄 {recurso['nombre']}\n"
+                f"🔗 {recurso['url']}\n"
+                f"{recurso['descripcion']}\n\n"
+            )
             # =================================================
             # SCORE FINAL
             # =================================================
@@ -454,8 +466,8 @@ def buscar_conocimientos(
                     # NUEVO: RECURSOS
                     # =========================================
 
-                    "recursos":
-                        recursos,
+                    "recursos_texto":
+                        recursos_texto,
 
                     # =========================================
                     # EVIDENCIAS
