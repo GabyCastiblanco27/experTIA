@@ -110,13 +110,17 @@ def buscar(request: PreguntaRequest):
 
     respuesta = {
 
-        "area": mejor.get("area"),
+        "area":
+            mejor.get("area"),
 
-        "proceso": mejor.get("proceso"),
+        "proceso":
+            mejor.get("proceso"),
 
-        "sub_proceso": mejor.get("sub_proceso"),
+        "sub_proceso":
+            mejor.get("sub_proceso"),
 
-        "tema": mejor.get("tema"),
+        "tema":
+            mejor.get("tema"),
 
         "pregunta_principal":
             mejor.get("pregunta_principal"),
@@ -140,7 +144,10 @@ def buscar(request: PreguntaRequest):
             mejor.get("herramientas"),
 
         "recursos":
-            mejor.get("recursos", [])
+            mejor.get("recursos", []),
+
+        "recursos_texto":
+            mejor.get("recursos_texto", "")
     }
 
     # =================================================
