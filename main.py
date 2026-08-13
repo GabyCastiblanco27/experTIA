@@ -150,6 +150,11 @@ def main():
             f"{conocimiento['score_keywords']:.2f}"
         )
 
+        print(
+            f"Score final: "
+            f"{conocimiento.get('score_final', 0):.2f}"
+        )
+
         # =====================================
         # CONCEPTOS
         # =====================================
@@ -195,8 +200,56 @@ def main():
                 f"→ {keyword['score']:.2f}"
             )
 
+        # =====================================
+        # RECURSOS
+        # =====================================
+
+        print("\nRecursos:")
+
+        recursos = conocimiento.get(
+            "recursos",
+            []
+        )
+
+        if recursos:
+
+            for recurso in recursos:
+
+                print(
+                    f"  - {recurso.get('nombre', 'Sin nombre')}"
+                )
+
+                print(
+                    f"    Tipo: "
+                    f"{recurso.get('tipo', 'Sin tipo')}"
+                )
+
+                print(
+                    f"    URL: "
+                    f"{recurso.get('url', 'Sin URL')}"
+                )
+
+                print(
+                    f"    Descripción: "
+                    f"{recurso.get('descripcion', '')}"
+                )
+
+        else:
+
+            print(
+                "  No hay recursos asociados."
+            )
+
+        # =====================================
+        # SEPARADOR
+        # =====================================
+
         print("\n" + "=" * 60)
 
+
+# =========================================
+# EJECUTAR PROGRAMA
+# =========================================
 
 if __name__ == "__main__":
     main()

@@ -9,12 +9,20 @@ def buscar_conocimientos(
     """
     Busca los conocimientos que mejor coinciden
     con los conceptos, intenciones y keywords detectados.
+
+    También obtiene los recursos asociados a cada
+    conocimiento, como documentos, formatos, URLs,
+    formularios, videos, etc.
     """
 
     conexion = None
     cursor = None
 
     try:
+
+        # =====================================================
+        # CONEXIÓN A BASE DE DATOS
+        # =====================================================
 
         conexion = obtener_conexion()
         cursor = conexion.cursor(dictionary=True)
@@ -40,6 +48,7 @@ def buscar_conocimientos(
                 c.herramientas,
                 c.link_politica,
                 c.estado
+
             FROM conocimientos c
 
             LEFT JOIN areas a
@@ -56,7 +65,6 @@ def buscar_conocimientos(
 
         # =====================================================
         # 2. CONVERTIR DETECCIONES EN DICCIONARIOS
-        #    PARA BUSCARLAS MÁS FÁCILMENTE
         # =====================================================
 
         conceptos_por_id = {}
@@ -89,6 +97,7 @@ def buscar_conocimientos(
                 conocimiento_id
             ] = resultado_keyword
 
+
         # =====================================================
         # 3. RECORRER CADA CONOCIMIENTO
         # =====================================================
@@ -101,20 +110,20 @@ def buscar_conocimientos(
                 conocimiento["conocimiento_id"]
             )
 
-            # -----------------------------------------------
+            # =================================================
             # SCORE DE CONCEPTOS
-            # -----------------------------------------------
+            # =================================================
 
             score_conceptos = 0.0
 
             conceptos_detectados = []
-
 
             consulta_conceptos = """
                 SELECT
                     cc.concepto_id,
                     cc.peso,
                     c.nombre AS concepto
+
                 FROM conocimiento_conceptos cc
 
                 INNER JOIN conceptos c
@@ -179,20 +188,20 @@ def buscar_conocimientos(
                 })
 
 
-            # -----------------------------------------------
+            # =================================================
             # SCORE DE INTENCIONES
-            # -----------------------------------------------
+            # =================================================
 
             score_intenciones = 0.0
 
             intenciones_detectadas = []
-
 
             consulta_intenciones = """
                 SELECT
                     ci.intencion_id,
                     ci.peso,
                     i.nombre AS intencion
+
                 FROM conocimiento_intenciones ci
 
                 INNER JOIN intenciones i
@@ -259,9 +268,9 @@ def buscar_conocimientos(
                 })
 
 
-            # -----------------------------------------------
+            # =================================================
             # SCORE DE KEYWORDS
-            # -----------------------------------------------
+            # =================================================
 
             score_keywords = 0.0
 
@@ -275,19 +284,6 @@ def buscar_conocimientos(
                         conocimiento_id
                     ]
                 )
-
-                # -------------------------------------------
-                # IMPORTANTE:
-                # resultado_keyword viene de detectar_keywords()
-                #
-                # Tiene esta estructura:
-                #
-                # {
-                #   "conocimiento_id": 1,
-                #   "score_keywords": 1.0,
-                #   "keywords_detectadas": [...]
-                # }
-                # -------------------------------------------
 
                 score_keywords = float(
                     resultado_keyword.get(
@@ -305,17 +301,68 @@ def buscar_conocimientos(
 
 
             # =================================================
-            # 4. CALCULAR SCORE FINAL
+            # RECURSOS
             # =================================================
+            #
+            # Aquí obtenemos documentos, formatos,
+            # URLs, formularios, videos, etc.
+            # asociados directamente al conocimiento.
+            #
 
-            # Por ahora utilizamos:
-            #
-            # 50% conceptos
-            # 30% intención
-            # 20% keywords
-            #
-            # Más adelante podemos ajustar estos pesos
-            # después de hacer pruebas reales.
+            recursos = []
+
+            consulta_recursos = """
+                SELECT
+                    id,
+                    conocimiento_id,
+                    tipo,
+                    nombre,
+                    url,
+                    descripcion
+
+                FROM recursos
+
+                WHERE conocimiento_id = %s
+                  AND activo = TRUE
+
+                ORDER BY id;
+            """
+
+            cursor.execute(
+                consulta_recursos,
+                (conocimiento_id,)
+            )
+
+            recursos_bd = cursor.fetchall()
+
+
+            for recurso in recursos_bd:
+
+                recursos.append({
+
+                    "id":
+                        recurso["id"],
+
+                    "conocimiento_id":
+                        recurso["conocimiento_id"],
+
+                    "tipo":
+                        recurso["tipo"],
+
+                    "nombre":
+                        recurso["nombre"],
+
+                    "url":
+                        recurso["url"],
+
+                    "descripcion":
+                        recurso["descripcion"]
+                })
+
+
+            # =================================================
+            # SCORE FINAL
+            # =================================================
 
             score_final = (
 
@@ -332,21 +379,15 @@ def buscar_conocimientos(
 
 
             # =================================================
-            # 5. SOLO GUARDAR CONOCIMIENTOS CON COINCIDENCIAS
+            # SOLO GUARDAR CONOCIMIENTOS CON COINCIDENCIAS
             # =================================================
 
             if (
-
                 score_conceptos > 0
-
                 or
-
                 score_intenciones > 0
-
                 or
-
                 score_keywords > 0
-
             ):
 
                 resultados.append({
@@ -409,6 +450,17 @@ def buscar_conocimientos(
                             "link_politica"
                         ],
 
+                    # =========================================
+                    # NUEVO: RECURSOS
+                    # =========================================
+
+                    "recursos":
+                        recursos,
+
+                    # =========================================
+                    # EVIDENCIAS
+                    # =========================================
+
                     "conceptos_detectados":
                         conceptos_detectados,
 
@@ -417,6 +469,10 @@ def buscar_conocimientos(
 
                     "intenciones_detectadas":
                         intenciones_detectadas,
+
+                    # =========================================
+                    # SCORES
+                    # =========================================
 
                     "score_conceptos":
                         round(
@@ -445,7 +501,7 @@ def buscar_conocimientos(
 
 
         # =====================================================
-        # 6. ORDENAR POR RELEVANCIA
+        # 4. ORDENAR POR RELEVANCIA
         # =====================================================
 
         resultados.sort(
@@ -456,7 +512,7 @@ def buscar_conocimientos(
 
 
         # =====================================================
-        # 7. DEVOLVER LOS RESULTADOS
+        # 5. DEVOLVER RESULTADOS
         # =====================================================
 
         return resultados
