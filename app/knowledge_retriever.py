@@ -75,7 +75,6 @@ def buscar_conocimientos(
 
             conceptos_por_id[concepto_id] = concepto
 
-
         intenciones_por_id = {}
 
         for intencion in intenciones:
@@ -83,7 +82,6 @@ def buscar_conocimientos(
             intencion_id = intencion["intencion_id"]
 
             intenciones_por_id[intencion_id] = intencion
-
 
         keywords_por_id = {}
 
@@ -96,7 +94,6 @@ def buscar_conocimientos(
             keywords_por_id[
                 conocimiento_id
             ] = resultado_keyword
-
 
         # =====================================================
         # 3. RECORRER CADA CONOCIMIENTO
@@ -142,7 +139,6 @@ def buscar_conocimientos(
                 cursor.fetchall()
             )
 
-
             for relacion in relaciones_conceptos:
 
                 concepto_id = (
@@ -187,7 +183,6 @@ def buscar_conocimientos(
                         )
                 })
 
-
             # =================================================
             # SCORE DE INTENCIONES
             # =================================================
@@ -219,7 +214,6 @@ def buscar_conocimientos(
             relaciones_intenciones = (
                 cursor.fetchall()
             )
-
 
             for relacion in relaciones_intenciones:
 
@@ -267,7 +261,6 @@ def buscar_conocimientos(
                         )
                 })
 
-
             # =================================================
             # SCORE DE KEYWORDS
             # =================================================
@@ -275,7 +268,6 @@ def buscar_conocimientos(
             score_keywords = 0.0
 
             keywords_detectadas = []
-
 
             if conocimiento_id in keywords_por_id:
 
@@ -299,15 +291,9 @@ def buscar_conocimientos(
                     )
                 )
 
-
             # =================================================
             # RECURSOS
             # =================================================
-            #
-            # Aquí obtenemos documentos, formatos,
-            # URLs, formularios, videos, etc.
-            # asociados directamente al conocimiento.
-            #
 
             recursos = []
 
@@ -335,6 +321,26 @@ def buscar_conocimientos(
 
             recursos_bd = cursor.fetchall()
 
+            print("\n========== DEBUG RECURSOS ==========")
+            print(
+                "Conocimiento ID:",
+                conocimiento_id
+            )
+            print(
+                "Recursos encontrados:",
+                recursos_bd
+            )
+            print(
+                "Cantidad:",
+                len(recursos_bd)
+            )
+            print(
+                "====================================\n"
+            )
+
+            # =================================================
+            # CONSTRUIR LISTA DE RECURSOS
+            # =================================================
 
             for recurso in recursos_bd:
 
@@ -359,19 +365,47 @@ def buscar_conocimientos(
                         recurso["descripcion"]
                 })
 
-             # =====================================================
+            # =================================================
             # RECURSOS EN FORMATO TEXTO
-            # =====================================================
+            # =================================================
 
-        recursos_texto = ""
+            recursos_texto = ""
 
-        for recurso in recursos:
+            for recurso in recursos:
 
-            recursos_texto += (
-                f"📄 {recurso['nombre']}\n"
-                f"🔗 {recurso['url']}\n"
-                f"{recurso['descripcion']}\n\n"
+                recursos_texto += (
+                    f"📄 {recurso['nombre']}\n"
+                    f"🔗 {recurso['url']}\n"
+                    f"{recurso['descripcion']}\n\n"
+                )
+
+            # =================================================
+            # DEBUG FINAL DE RECURSOS
+            # =================================================
+
+            print(
+                "\n========== DEBUG RECURSOS 2 =========="
             )
+
+            print(
+                "recursos:",
+                recursos
+            )
+
+            print(
+                "recursos_texto:",
+                recursos_texto
+            )
+
+            print(
+                "cantidad recursos:",
+                len(recursos)
+            )
+
+            print(
+                "======================================\n"
+            )
+
             # =================================================
             # SCORE FINAL
             # =================================================
@@ -388,7 +422,6 @@ def buscar_conocimientos(
 
                 score_keywords * 0.20
             )
-
 
             # =================================================
             # SOLO GUARDAR CONOCIMIENTOS CON COINCIDENCIAS
@@ -463,8 +496,11 @@ def buscar_conocimientos(
                         ],
 
                     # =========================================
-                    # NUEVO: RECURSOS
+                    # RECURSOS
                     # =========================================
+
+                    "recursos":
+                        recursos,
 
                     "recursos_texto":
                         recursos_texto,
@@ -511,7 +547,6 @@ def buscar_conocimientos(
                         )
                 })
 
-
         # =====================================================
         # 4. ORDENAR POR RELEVANCIA
         # =====================================================
@@ -522,13 +557,11 @@ def buscar_conocimientos(
             reverse=True
         )
 
-
         # =====================================================
         # 5. DEVOLVER RESULTADOS
         # =====================================================
 
         return resultados
-
 
     finally:
 
