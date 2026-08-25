@@ -10,7 +10,18 @@ from difflib import SequenceMatcher
 from app.normalizer import normalize, tokenize
 
 
-def similitud_tokens(texto1, texto2):
+# ============================================================
+# SIMILITUD POR TOKENS
+# ============================================================
+
+def similitud_tokens(
+    texto1,
+    texto2
+):
+    """
+    Calcula similitud entre dos textos
+    utilizando sus tokens normalizados.
+    """
 
     tokens1 = set(
         tokenize(texto1)
@@ -27,6 +38,8 @@ def similitud_tokens(texto1, texto2):
         tokens1 & tokens2
     )
 
+    # Proporción de tokens de la pregunta
+    # que aparecen en el texto comparado.
     return (
         len(interseccion)
         /
@@ -34,10 +47,29 @@ def similitud_tokens(texto1, texto2):
     )
 
 
-def similitud_texto(texto1, texto2):
+# ============================================================
+# SIMILITUD DE TEXTO
+# ============================================================
 
-    texto1 = normalize(texto1)
-    texto2 = normalize(texto2)
+def similitud_texto(
+    texto1,
+    texto2
+):
+    """
+    Calcula la similitud entre dos textos
+    utilizando:
+
+    - similitud por tokens
+    - similitud de secuencia
+    """
+
+    texto1 = normalize(
+        texto1
+    )
+
+    texto2 = normalize(
+        texto2
+    )
 
     if not texto1 or not texto2:
         return 0.0
@@ -63,10 +95,18 @@ def similitud_texto(texto1, texto2):
     )
 
 
+# ============================================================
+# PREGUNTAS ALTERNATIVAS
+# ============================================================
+
 def mejor_pregunta_alternativa(
     pregunta,
     preguntas_alternativas
 ):
+    """
+    Encuentra la pregunta alternativa
+    más parecida a la pregunta del usuario.
+    """
 
     if not preguntas_alternativas:
         return 0.0
@@ -75,22 +115,42 @@ def mejor_pregunta_alternativa(
 
     for alternativa in preguntas_alternativas:
 
+        if not alternativa:
+            continue
+
         score = similitud_texto(
             pregunta,
             alternativa
         )
 
         if score > mejor:
+
             mejor = score
 
-    return mejor
+    return min(
+        mejor,
+        1.0
+    )
 
+
+# ============================================================
+# SCORE CONCEPTUAL
+# ============================================================
 
 def calcular_score_conceptual(
     pregunta,
     conocimiento,
     preguntas_alternativas
 ):
+    """
+    Calcula el score conceptual de un conocimiento.
+
+    Componentes:
+
+    - Preguntas alternativas: 55 %
+    - Título: 30 %
+    - Descripción: 15 %
+    """
 
     score_alternativas = (
         mejor_pregunta_alternativa(
@@ -99,37 +159,56 @@ def calcular_score_conceptual(
         )
     )
 
-    score_titulo = similitud_texto(
-        pregunta,
-        conocimiento["titulo"]
+    score_titulo = (
+        similitud_texto(
+            pregunta,
+            conocimiento.get(
+                "titulo",
+                ""
+            )
+        )
     )
 
-    score_descripcion = similitud_texto(
-        pregunta,
-        conocimiento["descripcion"]
+    score_descripcion = (
+        similitud_texto(
+            pregunta,
+            conocimiento.get(
+                "descripcion",
+                ""
+            )
+        )
     )
 
     # --------------------------------------------------------
-    # Peso de cada elemento
+    # Ranking conceptual
     # --------------------------------------------------------
 
     score_final = (
 
-        score_alternativas * 0.55
+        score_alternativas
+        *
+        0.55
 
         +
 
-        score_titulo * 0.30
+        score_titulo
+        *
+        0.30
 
         +
 
-        score_descripcion * 0.15
+        score_descripcion
+        *
+        0.15
     )
 
     return {
 
         "score":
-            min(score_final, 1.0),
+            min(
+                score_final,
+                1.0
+            ),
 
         "preguntas_alternativas":
             score_alternativas,

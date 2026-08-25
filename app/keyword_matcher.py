@@ -7,11 +7,21 @@ con ellas.
 """
 
 from app.normalizer import normalize, tokenize
-
 from app.repository import get_keyword_matches
 
 
+# ============================================================
+# DETECCIÓN DE KEYWORDS
+# ============================================================
+
 def detectar_keywords(pregunta):
+    """
+    Detecta las keywords de PostgreSQL presentes
+    en la pregunta del usuario.
+    """
+
+    if not pregunta:
+        return []
 
     texto_normalizado = normalize(pregunta)
 
@@ -33,28 +43,33 @@ def detectar_keywords(pregunta):
             continue
 
         tokens_keyword = set(
-            palabra_bd.split()
+            tokenize(palabra_bd)
         )
 
         # ----------------------------------------------------
         # Keyword de una palabra
         # ----------------------------------------------------
 
-        if palabra_bd in texto_normalizado:
+        if len(tokens_keyword) == 1:
 
-            encontradas.append({
-                "conocimiento_id":
-                    keyword["conocimiento_id"],
+            if palabra_bd in tokens:
 
-                "keyword_id":
-                    keyword["keyword_id"],
+                encontradas.append({
 
-                "palabra":
-                    keyword["palabra"],
+                    "conocimiento_id":
+                        keyword["conocimiento_id"],
 
-                "peso":
-                    float(keyword["peso"])
-            })
+                    "keyword_id":
+                        keyword["keyword_id"],
+
+                    "palabra":
+                        keyword["palabra"],
+
+                    "peso":
+                        float(
+                            keyword["peso"] or 1.0
+                        )
+                })
 
             continue
 
@@ -65,6 +80,7 @@ def detectar_keywords(pregunta):
         if tokens_keyword.issubset(tokens):
 
             encontradas.append({
+
                 "conocimiento_id":
                     keyword["conocimiento_id"],
 
@@ -75,13 +91,28 @@ def detectar_keywords(pregunta):
                     keyword["palabra"],
 
                 "peso":
-                    float(keyword["peso"])
+                    float(
+                        keyword["peso"] or 1.0
+                    )
             })
 
     return encontradas
 
 
+# ============================================================
+# PUNTAJE DE KEYWORDS
+# ============================================================
+
 def calcular_puntajes_keywords(pregunta):
+    """
+    Calcula el puntaje total de keywords por conocimiento.
+
+    Resultado:
+
+        {
+            conocimiento_id: puntaje
+        }
+    """
 
     keywords = detectar_keywords(
         pregunta
@@ -91,16 +122,21 @@ def calcular_puntajes_keywords(pregunta):
 
     for keyword in keywords:
 
-        conocimiento_id = keyword[
-            "conocimiento_id"
-        ]
+        conocimiento_id = (
+            keyword["conocimiento_id"]
+        )
 
-        peso = keyword["peso"]
+        peso = float(
+            keyword["peso"]
+        )
 
-        if conocimiento_id not in puntajes:
+        puntajes.setdefault(
+            conocimiento_id,
+            0.0
+        )
 
-            puntajes[conocimiento_id] = 0
-
-        puntajes[conocimiento_id] += peso
+        puntajes[
+            conocimiento_id
+        ] += peso
 
     return puntajes

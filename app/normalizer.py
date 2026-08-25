@@ -1,6 +1,6 @@
 """
 normalizer.py
-------------
+-------------
 Normalización de preguntas realizadas a ExperTIA.
 """
 
@@ -8,8 +8,10 @@ import re
 import unicodedata
 
 
-# Palabras que normalmente no aportan información
-# relevante para la búsqueda.
+# ============================================================
+# STOPWORDS
+# ============================================================
+
 STOPWORDS = {
     "a",
     "al",
@@ -61,38 +63,83 @@ STOPWORDS = {
 }
 
 
-# Normalización de algunas formas frecuentes.
+# ============================================================
+# REEMPLAZOS
+# ============================================================
+
 REPLACEMENTS = {
+
+    # --------------------------------------------------------
+    # Retiros
+    # --------------------------------------------------------
+
     "retirar": "retiro",
     "retiros": "retiro",
+    "retiro": "retiro",
+
+    # --------------------------------------------------------
+    # Solicitudes
+    # --------------------------------------------------------
 
     "solicitar": "solicitud",
     "solicito": "solicitud",
     "solicitudes": "solicitud",
+    "solicitud": "solicitud",
+
+    # --------------------------------------------------------
+    # Trámites
+    # --------------------------------------------------------
 
     "tramitar": "tramite",
     "tramito": "tramite",
+    "tramites": "tramite",
+    "tramite": "tramite",
+
+    # --------------------------------------------------------
+    # Descargas
+    # --------------------------------------------------------
 
     "descargar": "descarga",
     "descargo": "descarga",
+    "descargas": "descarga",
+    "descarga": "descarga",
+
+    # --------------------------------------------------------
+    # Actualizaciones
+    # --------------------------------------------------------
 
     "actualizar": "actualizacion",
     "actualizo": "actualizacion",
+    "actualizaciones": "actualizacion",
+    "actualizacion": "actualizacion",
+
+    # --------------------------------------------------------
+    # Reportes
+    # --------------------------------------------------------
 
     "reportar": "reporte",
-    "reporto": "reporte"
+    "reporto": "reporte",
+    "reportes": "reporte",
+    "reporte": "reporte"
 }
 
 
+# ============================================================
+# ELIMINAR TILDES
+# ============================================================
+
 def remove_accents(text: str) -> str:
     """
-    Elimina tildes.
+    Elimina las tildes de un texto.
 
     Ejemplo:
 
-    cesantías -> cesantias
-    nómina -> nomina
+        cesantías -> cesantias
+        nómina -> nomina
     """
+
+    if not text:
+        return ""
 
     normalized = unicodedata.normalize(
         "NFD",
@@ -102,9 +149,15 @@ def remove_accents(text: str) -> str:
     return "".join(
         character
         for character in normalized
-        if unicodedata.category(character) != "Mn"
+        if unicodedata.category(
+            character
+        ) != "Mn"
     )
 
+
+# ============================================================
+# NORMALIZACIÓN
+# ============================================================
 
 def normalize(text: str) -> str:
     """
@@ -112,45 +165,61 @@ def normalize(text: str) -> str:
 
     Ejemplo:
 
-    ¿Cómo retiro mis cesantías?
+        ¿Cómo retiro mis cesantías?
 
-    -->
+    Resultado:
 
-    retiro cesantias
+        retiro cesantias
     """
 
     if not text:
         return ""
 
-    # Convertir a minúsculas
+    # --------------------------------------------------------
+    # Minúsculas
+    # --------------------------------------------------------
+
     text = text.lower().strip()
 
-    # Quitar tildes
+    # --------------------------------------------------------
+    # Eliminar tildes
+    # --------------------------------------------------------
+
     text = remove_accents(text)
 
-    # Eliminar signos de puntuación
+    # --------------------------------------------------------
+    # Eliminar signos
+    # --------------------------------------------------------
+
     text = re.sub(
         r"[^a-z0-9ñü\s]",
         " ",
         text
     )
 
+    # --------------------------------------------------------
     # Eliminar espacios repetidos
+    # --------------------------------------------------------
+
     text = re.sub(
         r"\s+",
         " ",
         text
     ).strip()
 
+    # --------------------------------------------------------
+    # Procesar tokens
+    # --------------------------------------------------------
+
     tokens = []
 
     for token in text.split():
 
-        # Ignorar palabras vacías
+        # Ignorar stopwords
         if token in STOPWORDS:
             continue
 
-        # Aplicar reemplazo si existe
+        # Aplicar normalización léxica
         token = REPLACEMENTS.get(
             token,
             token
@@ -158,21 +227,24 @@ def normalize(text: str) -> str:
 
         tokens.append(token)
 
-
     return " ".join(tokens)
 
 
+# ============================================================
+# TOKENIZACIÓN
+# ============================================================
+
 def tokenize(text: str) -> list[str]:
     """
-    Convierte una pregunta normalizada en una lista de palabras.
+    Convierte una pregunta en tokens normalizados.
 
     Ejemplo:
 
-    "retiro cesantias"
+        "¿Cómo retiro mis cesantías?"
 
-    -->
+    Resultado:
 
-    ["retiro", "cesantias"]
+        ["retiro", "cesantias"]
     """
 
     normalized = normalize(text)

@@ -1,13 +1,17 @@
 """
 repository.py
-------------
+-------------
 Consultas a la base de datos PostgreSQL de ExperTIA.
 """
 
 from datetime import datetime, timezone
 
-from app.database import obtener_conexion
+from app.database import obtener_conexion, obtener_cursor
 
+
+# ============================================================
+# KEYWORDS
+# ============================================================
 
 def get_keyword_matches():
     """
@@ -32,28 +36,32 @@ def get_keyword_matches():
 
     with obtener_conexion() as conn:
 
-        with conn.cursor() as cursor:
+        with obtener_cursor(conn) as cursor:
 
             cursor.execute(sql)
 
             return cursor.fetchall()
 
 
+# ============================================================
+# INTENCIONES
+# ============================================================
+
 def get_intention_variants():
     """
-    Obtiene las variantes de intención.
+    Obtiene las variantes de intención activas.
 
     Ejemplo:
 
-    Intención:
-        Solicitar
+        Intención:
+            Solicitar
 
-    Variantes:
-        necesito
-        quiero
-        solicitar
-        requiero
-        tramitar
+        Variantes:
+            necesito
+            quiero
+            solicitar
+            requiero
+            tramitar
     """
 
     sql = """
@@ -74,12 +82,16 @@ def get_intention_variants():
 
     with obtener_conexion() as conn:
 
-        with conn.cursor() as cursor:
+        with obtener_cursor(conn) as cursor:
 
             cursor.execute(sql)
 
             return cursor.fetchall()
 
+
+# ============================================================
+# CONOCIMIENTOS
+# ============================================================
 
 def get_knowledge_candidates():
     """
@@ -96,23 +108,16 @@ def get_knowledge_candidates():
         SELECT
 
             c.id,
-
             c.titulo,
-
             c.descripcion,
-
             c.respuesta,
-
             c.responsable,
-
             c.estado,
 
             c.area_id,
-
             a.nombre AS area,
 
             c.proceso_id,
-
             p.nombre AS proceso,
 
 
@@ -243,12 +248,16 @@ def get_knowledge_candidates():
 
     with obtener_conexion() as conn:
 
-        with conn.cursor() as cursor:
+        with obtener_cursor(conn) as cursor:
 
             cursor.execute(sql)
 
             return cursor.fetchall()
 
+
+# ============================================================
+# HISTORIAL
+# ============================================================
 
 def save_query_history(
     usuario,
@@ -283,7 +292,7 @@ def save_query_history(
 
     with obtener_conexion() as conn:
 
-        with conn.cursor() as cursor:
+        with obtener_cursor(conn) as cursor:
 
             cursor.execute(
                 sql,
@@ -302,4 +311,125 @@ def save_query_history(
             )
 
         conn.commit()
-    
+
+
+# ============================================================
+# FUNCIONES DE COMPATIBILIDAD
+# ============================================================
+
+def obtener_conocimientos():
+    """
+    Obtiene los conocimientos activos.
+
+    Esta función mantiene compatibilidad con
+    knowledge_retriever.py.
+    """
+
+    conocimientos = get_knowledge_candidates()
+
+    resultado = []
+
+    for conocimiento in conocimientos:
+
+        resultado.append({
+
+            "id":
+                conocimiento["id"],
+
+            "titulo":
+                conocimiento["titulo"],
+
+            "descripcion":
+                conocimiento["descripcion"],
+
+            "respuesta":
+                conocimiento["respuesta"],
+
+            "responsable":
+                conocimiento["responsable"],
+
+            "estado":
+                conocimiento["estado"],
+
+            "area":
+                conocimiento["area"],
+
+            "proceso":
+                conocimiento["proceso"]
+
+        })
+
+    return resultado
+
+
+def obtener_preguntas_alternativas():
+    """
+    Obtiene las preguntas alternativas activas.
+    """
+
+    sql = """
+        SELECT
+            pa.id,
+            pa.conocimiento_id,
+            pa.pregunta
+
+        FROM preguntas_alternativas pa
+
+        INNER JOIN conocimientos c
+            ON c.id = pa.conocimiento_id
+
+        WHERE UPPER(
+            COALESCE(
+                c.estado,
+                'ACTIVO'
+            )
+        ) = 'ACTIVO'
+    """
+
+    with obtener_conexion() as conn:
+
+        with obtener_cursor(conn) as cursor:
+
+            cursor.execute(sql)
+
+            return cursor.fetchall()
+
+
+def obtener_recursos_por_conocimiento(
+    conocimiento_id
+):
+    """
+    Obtiene los recursos activos asociados
+    a un conocimiento.
+    """
+
+    sql = """
+        SELECT
+            r.id,
+            r.nombre,
+            r.tipo,
+            r.url,
+            r.descripcion
+
+        FROM recursos r
+
+        WHERE r.conocimiento_id = %s
+
+        AND COALESCE(
+            r.activo,
+            TRUE
+        ) = TRUE
+
+        ORDER BY r.id
+    """
+
+    with obtener_conexion() as conn:
+
+        with obtener_cursor(conn) as cursor:
+
+            cursor.execute(
+                sql,
+                (conocimiento_id,)
+            )
+
+            return cursor.fetchall()

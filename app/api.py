@@ -7,8 +7,7 @@ API REST del motor de búsqueda de ExperTIA.
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
-
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.database import obtener_conexion
 
@@ -17,9 +16,13 @@ from app.knowledge_retriever import (
 )
 
 from app.repository import (
-    guardar_historial
+    save_query_history
 )
 
+
+# ============================================================
+# APLICACIÓN
+# ============================================================
 
 app = FastAPI(
     title="ExperTIA Search Engine",
@@ -33,11 +36,18 @@ app = FastAPI(
 
 class ConsultaRequest(BaseModel):
 
-    pregunta: str
+    pregunta: str = Field(
+        ...,
+        min_length=1
+    )
 
     usuario: Optional[str] = None
 
-    top_k: int = 5
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        le=20
+    )
 
 
 # ============================================================
@@ -69,6 +79,7 @@ def health():
     finally:
 
         if conexion:
+
             conexion.close()
 
 
@@ -82,6 +93,10 @@ def buscar(
 ):
 
     try:
+
+        # ----------------------------------------------------
+        # Ejecutar motor de búsqueda
+        # ----------------------------------------------------
 
         resultado = (
             buscar_conocimiento(
@@ -98,7 +113,7 @@ def buscar(
 
         conocimiento_id = None
 
-        if resultado["resultado"]:
+        if resultado.get("resultado"):
 
             conocimiento_id = (
                 resultado[
@@ -110,7 +125,7 @@ def buscar(
         # Guardar historial
         # ----------------------------------------------------
 
-        guardar_historial(
+        save_query_history(
 
             usuario=consulta.usuario,
 
@@ -118,9 +133,10 @@ def buscar(
 
             conocimiento_id=conocimiento_id,
 
-            confianza=resultado[
-                "confianza"
-            ]
+            confianza=resultado.get(
+                "confianza",
+                0
+            )
         )
 
         return resultado
