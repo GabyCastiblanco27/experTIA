@@ -1,12 +1,13 @@
+from psycopg2.extras import RealDictCursor
+
 from app.database import obtener_conexion
-from app.normalizer import normalizar_texto, obtener_palabras
+from app.normalizer import (
+    normalizar_texto,
+    obtener_palabras
+)
 
 
 def obtener_keywords():
-    """
-    Obtiene las keywords activas asociadas
-    a cada conocimiento.
-    """
 
     conexion = None
     cursor = None
@@ -14,25 +15,32 @@ def obtener_keywords():
     try:
 
         conexion = obtener_conexion()
-        cursor = conexion.cursor(dictionary=True)
+
+        cursor = conexion.cursor(
+            cursor_factory=RealDictCursor
+        )
 
         consulta = """
             SELECT
+
                 ck.conocimiento_id,
+
                 k.id AS keyword_id,
+
                 k.palabra AS keyword,
+
                 ck.peso
+
             FROM conocimiento_keywords ck
 
             INNER JOIN keywords k
                 ON ck.keyword_id = k.id
 
-            WHERE k.tipo = 'KEYWORD'
-              AND k.activo = TRUE
+            WHERE k.activo = TRUE
 
             ORDER BY
                 ck.conocimiento_id,
-                ck.peso DESC;
+                ck.peso DESC
         """
 
         cursor.execute(consulta)
@@ -52,10 +60,6 @@ def calcular_coincidencia_keyword(
     pregunta,
     keyword
 ):
-    """
-    Calcula qué porcentaje de las palabras
-    de la keyword aparecen en la pregunta.
-    """
 
     palabras_pregunta = set(
         obtener_palabras(pregunta)
@@ -81,13 +85,14 @@ def calcular_coincidencia_keyword(
     )
 
 
-def detectar_keywords(pregunta):
-    """
-    Detecta keywords relacionadas con la pregunta.
-    """
+def detectar_keywords(
+    pregunta
+):
 
-    pregunta_normalizada = normalizar_texto(
-        pregunta
+    pregunta_normalizada = (
+        normalizar_texto(
+            pregunta
+        )
     )
 
     keywords = obtener_keywords()
@@ -96,25 +101,21 @@ def detectar_keywords(pregunta):
 
     for keyword in keywords:
 
-        keyword_normalizada = normalizar_texto(
-            keyword["keyword"]
+        keyword_normalizada = (
+            normalizar_texto(
+                keyword["keyword"]
+            )
         )
 
-        # =========================================
-        # NIVEL 1
-        # Coincidencia exacta de frase
-        # =========================================
+        # ==========================
+        # Coincidencia exacta
+        # ==========================
 
         if keyword_normalizada in pregunta_normalizada:
 
             coincidencia = 1.0
 
         else:
-
-            # =====================================
-            # NIVEL 2
-            # Coincidencia por palabras
-            # =====================================
 
             coincidencia = (
                 calcular_coincidencia_keyword(
@@ -129,20 +130,20 @@ def detectar_keywords(pregunta):
         score = (
             coincidencia
             *
-            float(keyword["peso"])
+            float(
+                keyword["peso"]
+            )
         )
 
         conocimiento_id = (
             keyword["conocimiento_id"]
         )
 
-        # =========================================
-        # Crear resultado del conocimiento
-        # =========================================
-
         if conocimiento_id not in resultados:
 
-            resultados[conocimiento_id] = {
+            resultados[
+                conocimiento_id
+            ] = {
 
                 "conocimiento_id":
                     conocimiento_id,
@@ -153,10 +154,6 @@ def detectar_keywords(pregunta):
                 "keywords_detectadas":
                     []
             }
-
-        # =========================================
-        # Guardar evidencia
-        # =========================================
 
         resultados[
             conocimiento_id
@@ -171,15 +168,16 @@ def detectar_keywords(pregunta):
                 keyword["keyword"],
 
             "peso":
-                float(keyword["peso"]),
+                float(
+                    keyword["peso"]
+                ),
 
             "score":
-                round(score, 4)
+                round(
+                    score,
+                    4
+                )
         })
-
-        # =========================================
-        # Acumular score
-        # =========================================
 
         resultados[
             conocimiento_id
