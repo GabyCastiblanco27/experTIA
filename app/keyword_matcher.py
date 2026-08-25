@@ -1,198 +1,106 @@
-from psycopg2.extras import RealDictCursor
+"""
+keyword_matcher.py
 
-from app.database import obtener_conexion
-from app.normalizer import (
-    normalizar_texto,
-    obtener_palabras
-)
+Detecta keywords presentes en la pregunta
+y calcula qué conocimientos están relacionados
+con ellas.
+"""
+
+from app.normalizer import normalize, tokenize
+
+from app.repository import get_keyword_matches
 
 
-def obtener_keywords():
+def detectar_keywords(pregunta):
 
-    conexion = None
-    cursor = None
+    texto_normalizado = normalize(pregunta)
 
-    try:
+    tokens = set(
+        tokenize(pregunta)
+    )
 
-        conexion = obtener_conexion()
+    keywords_bd = get_keyword_matches()
 
-        cursor = conexion.cursor(
-            cursor_factory=RealDictCursor
+    encontradas = []
+
+    for keyword in keywords_bd:
+
+        palabra_bd = normalize(
+            keyword["palabra"]
         )
 
-        consulta = """
-            SELECT
+        if not palabra_bd:
+            continue
 
-                ck.conocimiento_id,
-
-                k.id AS keyword_id,
-
-                k.palabra AS keyword,
-
-                ck.peso
-
-            FROM conocimiento_keywords ck
-
-            INNER JOIN keywords k
-                ON ck.keyword_id = k.id
-
-            WHERE k.activo = TRUE
-
-            ORDER BY
-                ck.conocimiento_id,
-                ck.peso DESC
-        """
-
-        cursor.execute(consulta)
-
-        return cursor.fetchall()
-
-    finally:
-
-        if cursor:
-            cursor.close()
-
-        if conexion:
-            conexion.close()
-
-
-def calcular_coincidencia_keyword(
-    pregunta,
-    keyword
-):
-
-    palabras_pregunta = set(
-        obtener_palabras(pregunta)
-    )
-
-    palabras_keyword = set(
-        obtener_palabras(keyword)
-    )
-
-    if not palabras_keyword:
-        return 0.0
-
-    coincidencias = (
-        palabras_pregunta.intersection(
-            palabras_keyword
+        tokens_keyword = set(
+            palabra_bd.split()
         )
+
+        # ----------------------------------------------------
+        # Keyword de una palabra
+        # ----------------------------------------------------
+
+        if palabra_bd in texto_normalizado:
+
+            encontradas.append({
+                "conocimiento_id":
+                    keyword["conocimiento_id"],
+
+                "keyword_id":
+                    keyword["keyword_id"],
+
+                "palabra":
+                    keyword["palabra"],
+
+                "peso":
+                    float(keyword["peso"])
+            })
+
+            continue
+
+        # ----------------------------------------------------
+        # Keyword de varias palabras
+        # ----------------------------------------------------
+
+        if tokens_keyword.issubset(tokens):
+
+            encontradas.append({
+                "conocimiento_id":
+                    keyword["conocimiento_id"],
+
+                "keyword_id":
+                    keyword["keyword_id"],
+
+                "palabra":
+                    keyword["palabra"],
+
+                "peso":
+                    float(keyword["peso"])
+            })
+
+    return encontradas
+
+
+def calcular_puntajes_keywords(pregunta):
+
+    keywords = detectar_keywords(
+        pregunta
     )
 
-    return (
-        len(coincidencias)
-        /
-        len(palabras_keyword)
-    )
-
-
-def detectar_keywords(
-    pregunta
-):
-
-    pregunta_normalizada = (
-        normalizar_texto(
-            pregunta
-        )
-    )
-
-    keywords = obtener_keywords()
-
-    resultados = {}
+    puntajes = {}
 
     for keyword in keywords:
 
-        keyword_normalizada = (
-            normalizar_texto(
-                keyword["keyword"]
-            )
-        )
+        conocimiento_id = keyword[
+            "conocimiento_id"
+        ]
 
-        # ==========================
-        # Coincidencia exacta
-        # ==========================
+        peso = keyword["peso"]
 
-        if keyword_normalizada in pregunta_normalizada:
+        if conocimiento_id not in puntajes:
 
-            coincidencia = 1.0
+            puntajes[conocimiento_id] = 0
 
-        else:
+        puntajes[conocimiento_id] += peso
 
-            coincidencia = (
-                calcular_coincidencia_keyword(
-                    pregunta,
-                    keyword["keyword"]
-                )
-            )
-
-            if coincidencia < 0.70:
-                continue
-
-        score = (
-            coincidencia
-            *
-            float(
-                keyword["peso"]
-            )
-        )
-
-        conocimiento_id = (
-            keyword["conocimiento_id"]
-        )
-
-        if conocimiento_id not in resultados:
-
-            resultados[
-                conocimiento_id
-            ] = {
-
-                "conocimiento_id":
-                    conocimiento_id,
-
-                "score_keywords":
-                    0.0,
-
-                "keywords_detectadas":
-                    []
-            }
-
-        resultados[
-            conocimiento_id
-        ][
-            "keywords_detectadas"
-        ].append({
-
-            "keyword_id":
-                keyword["keyword_id"],
-
-            "keyword":
-                keyword["keyword"],
-
-            "peso":
-                float(
-                    keyword["peso"]
-                ),
-
-            "score":
-                round(
-                    score,
-                    4
-                )
-        })
-
-        resultados[
-            conocimiento_id
-        ][
-            "score_keywords"
-        ] += score
-
-    resultados = list(
-        resultados.values()
-    )
-
-    resultados.sort(
-        key=lambda x:
-            x["score_keywords"],
-        reverse=True
-    )
-
-    return resultados
+    return puntajes

@@ -1,114 +1,142 @@
-from psycopg2.extras import RealDictCursor
+"""
+concept_matcher.py
 
-from app.database import obtener_conexion
-from app.normalizer import (
-    normalizar_texto
-)
+Compara la pregunta del usuario contra
+el contenido conceptual de cada conocimiento.
+"""
+
+from difflib import SequenceMatcher
+
+from app.normalizer import normalize, tokenize
 
 
-def detectar_conceptos(texto):
-    """
-    Compatibilidad con la arquitectura actual.
+def similitud_tokens(texto1, texto2):
 
-    En la nueva versión de ExperTIA los conceptos
-    se obtienen desde la tabla de keywords.
-    """
+    tokens1 = set(
+        tokenize(texto1)
+    )
 
-    conexion = None
-    cursor = None
+    tokens2 = set(
+        tokenize(texto2)
+    )
 
-    try:
+    if not tokens1 or not tokens2:
+        return 0.0
 
-        conexion = obtener_conexion()
+    interseccion = (
+        tokens1 & tokens2
+    )
 
-        cursor = conexion.cursor(
-            cursor_factory=RealDictCursor
+    return (
+        len(interseccion)
+        /
+        len(tokens1)
+    )
+
+
+def similitud_texto(texto1, texto2):
+
+    texto1 = normalize(texto1)
+    texto2 = normalize(texto2)
+
+    if not texto1 or not texto2:
+        return 0.0
+
+    score_tokens = (
+        similitud_tokens(
+            texto1,
+            texto2
+        )
+    )
+
+    score_secuencia = (
+        SequenceMatcher(
+            None,
+            texto1,
+            texto2
+        ).ratio()
+    )
+
+    return max(
+        score_tokens,
+        score_secuencia
+    )
+
+
+def mejor_pregunta_alternativa(
+    pregunta,
+    preguntas_alternativas
+):
+
+    if not preguntas_alternativas:
+        return 0.0
+
+    mejor = 0.0
+
+    for alternativa in preguntas_alternativas:
+
+        score = similitud_texto(
+            pregunta,
+            alternativa
         )
 
-        cursor.execute("""
-            SELECT
-                ck.conocimiento_id,
-                k.id AS keyword_id,
-                k.palabra,
-                ck.peso
-            FROM conocimiento_keywords ck
-            INNER JOIN keywords k
-                ON ck.keyword_id = k.id
-        """)
+        if score > mejor:
+            mejor = score
 
-        registros = cursor.fetchall()
+    return mejor
 
-        texto_normalizado = normalizar_texto(
-            texto
+
+def calcular_score_conceptual(
+    pregunta,
+    conocimiento,
+    preguntas_alternativas
+):
+
+    score_alternativas = (
+        mejor_pregunta_alternativa(
+            pregunta,
+            preguntas_alternativas
         )
+    )
 
-        resultados = []
+    score_titulo = similitud_texto(
+        pregunta,
+        conocimiento["titulo"]
+    )
 
-        for registro in registros:
+    score_descripcion = similitud_texto(
+        pregunta,
+        conocimiento["descripcion"]
+    )
 
-            palabra = normalizar_texto(
-                registro["palabra"]
-            )
+    # --------------------------------------------------------
+    # Peso de cada elemento
+    # --------------------------------------------------------
 
-            if palabra in texto_normalizado:
+    score_final = (
 
-                resultados.append({
+        score_alternativas * 0.55
 
-                    "concepto_id":
-                        registro["keyword_id"],
+        +
 
-                    "concepto":
-                        registro["palabra"],
+        score_titulo * 0.30
 
-                    "mejor_variante":
-                        registro["palabra"],
+        +
 
-                    "mejor_score":
-                        float(
-                            registro["peso"]
-                        ),
+        score_descripcion * 0.15
+    )
 
-                    "conocimiento_id":
-                        registro[
-                            "conocimiento_id"
-                        ],
+    return {
 
-                    "coincidencias": [
-                        {
-                            "variante":
-                                registro[
-                                    "palabra"
-                                ],
+        "score":
+            min(score_final, 1.0),
 
-                            "peso":
-                                float(
-                                    registro[
-                                        "peso"
-                                    ]
-                                ),
+        "preguntas_alternativas":
+            score_alternativas,
 
-                            "score":
-                                float(
-                                    registro[
-                                        "peso"
-                                    ]
-                                )
-                        }
-                    ]
-                })
+        "titulo":
+            score_titulo,
 
-        resultados.sort(
-            key=lambda x:
-                x["mejor_score"],
-            reverse=True
-        )
-
-        return resultados
-
-    finally:
-
-        if cursor:
-            cursor.close()
-
-        if conexion:
-            conexion.close()
+        "descripcion":
+            score_descripcion
+    }

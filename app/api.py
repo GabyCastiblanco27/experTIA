@@ -1,74 +1,139 @@
-from fastapi import FastAPI
+"""
+api.py
+
+API REST del motor de búsqueda de ExperTIA.
+"""
+
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+
 from pydantic import BaseModel
 
+from app.database import obtener_conexion
+
 from app.knowledge_retriever import (
-    buscar_conocimientos
+    buscar_conocimiento
 )
+
+from app.repository import (
+    guardar_historial
+)
+
 
 app = FastAPI(
-    title="ExperTIA API"
+    title="ExperTIA Search Engine",
+    version="2.0"
 )
 
 
-class PreguntaRequest(BaseModel):
+# ============================================================
+# MODELO DE REQUEST
+# ============================================================
+
+class ConsultaRequest(BaseModel):
+
     pregunta: str
 
+    usuario: Optional[str] = None
 
-@app.get("/")
-def inicio():
+    top_k: int = 5
 
-    return {
-        "mensaje": "ExperTIA API funcionando"
-    }
 
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.get("/health")
+def health():
+
+    conexion = None
+
+    try:
+
+        conexion = obtener_conexion()
+
+        return {
+            "status": "ok",
+            "database": "connected"
+        }
+
+    except Exception as error:
+
+        return {
+            "status": "error",
+            "database": "disconnected",
+            "detalle": str(error)
+        }
+
+    finally:
+
+        if conexion:
+            conexion.close()
+
+
+# ============================================================
+# BUSCAR
+# ============================================================
 
 @app.post("/buscar")
-def buscar(request: PreguntaRequest):
+def buscar(
+    consulta: ConsultaRequest
+):
 
-    pregunta = request.pregunta.strip()
+    try:
 
-    if not pregunta:
+        resultado = (
+            buscar_conocimiento(
 
-        return {
-            "encontrado": False,
-            "mensaje": "Debes ingresar una pregunta"
-        }
+                consulta.pregunta,
 
-    resultados = buscar_conocimientos(
-        pregunta
-    )
+                consulta.top_k
+            )
+        )
 
-    if not resultados:
+        # ----------------------------------------------------
+        # Obtener ID del conocimiento seleccionado
+        # ----------------------------------------------------
 
-        return {
-            "encontrado": False,
-            "mensaje": "No encontré información relacionada"
-        }
+        conocimiento_id = None
 
-    mejor = resultados[0]
+        if resultado["resultado"]:
 
-    return {
-        "encontrado": True,
-        "respuesta": {
-            "titulo":
-                mejor["titulo"],
+            conocimiento_id = (
+                resultado[
+                    "resultado"
+                ]["id"]
+            )
 
-            "area":
-                mejor["area"],
+        # ----------------------------------------------------
+        # Guardar historial
+        # ----------------------------------------------------
 
-            "proceso":
-                mejor["proceso"],
+        guardar_historial(
 
-            "descripcion":
-                mejor["descripcion"],
+            usuario=consulta.usuario,
 
-            "respuesta":
-                mejor["respuesta"],
+            pregunta=consulta.pregunta,
 
-            "responsable":
-                mejor["responsable"],
+            conocimiento_id=conocimiento_id,
 
-            "recursos":
-                mejor["recursos"]
-        }
-    }
+            confianza=resultado[
+                "confianza"
+            ]
+        )
+
+        return resultado
+
+    except Exception as error:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Error ejecutando el "
+                "motor de búsqueda: "
+                + str(error)
+            )
+        )

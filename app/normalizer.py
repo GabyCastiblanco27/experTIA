@@ -1,147 +1,183 @@
+"""
+normalizer.py
+------------
+Normalización de preguntas realizadas a ExperTIA.
+"""
+
 import re
 import unicodedata
 
 
-# Palabras que normalmente no aportan valor
-# para encontrar el conocimiento correcto.
-PALABRAS_VACIAS = {
-
+# Palabras que normalmente no aportan información
+# relevante para la búsqueda.
+STOPWORDS = {
+    "a",
+    "al",
+    "con",
+    "de",
+    "del",
     "el",
+    "en",
+    "es",
     "la",
-    "los",
     "las",
-
+    "lo",
+    "los",
+    "me",
+    "mi",
+    "mis",
+    "para",
+    "por",
+    "que",
+    "se",
+    "su",
+    "sus",
     "un",
     "una",
     "unos",
     "unas",
-
-    "de",
-    "del",
-    "al",
-    "a",
-    "en",
-
-    "por",
-    "para",
-    "con",
-
     "y",
     "o",
-
-    "que",
+    "u",
     "como",
+    "cómo",
+    "donde",
+    "dónde",
+    "cuando",
+    "cuándo",
     "cual",
+    "cuál",
     "cuales",
-
-    "es",
-    "son",
-
-    "mi",
-    "mis",
-
-    "me",
-    "te",
-    "se",
-
+    "cuáles",
     "puedo",
     "puede",
-
-    "necesito",
+    "pueden",
     "quiero",
-    "deseo",
-
+    "necesito",
+    "quisiera",
+    "hay",
     "hacer",
-    "realizar",
-
-    "consultar",
-    "buscar",
-
-    "como",
-    "donde",
-    "cuando"
+    "hago"
 }
 
 
-def quitar_tildes(texto):
+# Normalización de algunas formas frecuentes.
+REPLACEMENTS = {
+    "retirar": "retiro",
+    "retiros": "retiro",
+
+    "solicitar": "solicitud",
+    "solicito": "solicitud",
+    "solicitudes": "solicitud",
+
+    "tramitar": "tramite",
+    "tramito": "tramite",
+
+    "descargar": "descarga",
+    "descargo": "descarga",
+
+    "actualizar": "actualizacion",
+    "actualizo": "actualizacion",
+
+    "reportar": "reporte",
+    "reporto": "reporte"
+}
+
+
+def remove_accents(text: str) -> str:
     """
-    Convierte:
+    Elimina tildes.
+
+    Ejemplo:
 
     cesantías -> cesantias
     nómina -> nomina
-    información -> informacion
     """
 
-    texto = unicodedata.normalize(
+    normalized = unicodedata.normalize(
         "NFD",
-        texto
+        text
     )
 
     return "".join(
-        caracter
-        for caracter in texto
-        if unicodedata.category(
-            caracter
-        ) != "Mn"
+        character
+        for character in normalized
+        if unicodedata.category(character) != "Mn"
     )
 
 
-def normalizar_texto(texto):
+def normalize(text: str) -> str:
     """
-    Normaliza texto para búsqueda.
+    Normaliza una pregunta.
+
+    Ejemplo:
+
+    ¿Cómo retiro mis cesantías?
+
+    -->
+
+    retiro cesantias
     """
 
-    if not texto:
+    if not text:
         return ""
 
-    texto = str(texto)
+    # Convertir a minúsculas
+    text = text.lower().strip()
 
-    texto = texto.lower()
+    # Quitar tildes
+    text = remove_accents(text)
 
-    texto = quitar_tildes(texto)
-
-    texto = re.sub(
-        r"[^a-z0-9\s]",
+    # Eliminar signos de puntuación
+    text = re.sub(
+        r"[^a-z0-9ñü\s]",
         " ",
-        texto
+        text
     )
 
-    texto = re.sub(
+    # Eliminar espacios repetidos
+    text = re.sub(
         r"\s+",
         " ",
-        texto
-    )
+        text
+    ).strip()
 
-    return texto.strip()
+    tokens = []
+
+    for token in text.split():
+
+        # Ignorar palabras vacías
+        if token in STOPWORDS:
+            continue
+
+        # Aplicar reemplazo si existe
+        token = REPLACEMENTS.get(
+            token,
+            token
+        )
+
+        tokens.append(token)
 
 
-def obtener_palabras(texto):
+    return " ".join(tokens)
+
+
+def tokenize(text: str) -> list[str]:
     """
-    Devuelve únicamente las palabras relevantes.
+    Convierte una pregunta normalizada en una lista de palabras.
+
+    Ejemplo:
+
+    "retiro cesantias"
+
+    -->
+
+    ["retiro", "cesantias"]
     """
 
-    texto_normalizado = (
-        normalizar_texto(texto)
-    )
+    normalized = normalize(text)
 
-    palabras = texto_normalizado.split()
+    if not normalized:
+        return []
 
-    return [
-
-        palabra
-
-        for palabra in palabras
-
-        if palabra not in PALABRAS_VACIAS
-    ]
-
-
-def obtener_texto_normalizado(texto):
-    """
-    Devuelve el texto normalizado
-    sin palabras vacías.
-    """
-
-    return " ".join(
-        obtener_palabras(texto)
-    )
+    return normalized.split()
