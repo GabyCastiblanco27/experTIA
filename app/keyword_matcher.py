@@ -10,12 +10,19 @@ from app.normalizer import normalize, tokenize
 from app.repository import get_keyword_matches
 
 
+# ============================================================
+# DETECTAR KEYWORDS
+# ============================================================
+
 def detectar_keywords(pregunta):
     """
     Detecta las keywords relacionadas con la pregunta.
 
-    La comparación se realiza utilizando texto y tokens
-    previamente normalizados.
+    Permite coincidencias:
+
+    - Exactas
+    - De varias palabras
+    - Parciales
     """
 
     texto_normalizado = normalize(pregunta)
@@ -50,17 +57,19 @@ def detectar_keywords(pregunta):
             continue
 
         # ====================================================
-        # COINCIDENCIA DE KEYWORD
+        # KEYWORD DE UNA SOLA PALABRA
         # ====================================================
 
-        # Keyword de una sola palabra
         if len(tokens_keyword) == 1:
 
-            if tokens_keyword.issubset(
-                tokens_pregunta
-            ):
+            token_keyword = next(
+                iter(tokens_keyword)
+            )
+
+            if token_keyword in tokens_pregunta:
 
                 encontradas.append({
+
                     "conocimiento_id":
                         keyword["conocimiento_id"],
 
@@ -72,6 +81,7 @@ def detectar_keywords(pregunta):
 
                     "peso":
                         float(keyword["peso"])
+
                 })
 
             continue
@@ -80,11 +90,26 @@ def detectar_keywords(pregunta):
         # KEYWORD DE VARIAS PALABRAS
         # ====================================================
 
-        if tokens_keyword.issubset(
+        coincidencias = (
+            tokens_keyword
+            &
             tokens_pregunta
-        ):
+        )
+
+        # Porcentaje de palabras de la keyword
+        # encontradas en la pregunta.
+
+        porcentaje = (
+            len(coincidencias)
+            /
+            len(tokens_keyword)
+        )
+
+        # Coincidencia completa
+        if porcentaje >= 1.0:
 
             encontradas.append({
+
                 "conocimiento_id":
                     keyword["conocimiento_id"],
 
@@ -96,10 +121,34 @@ def detectar_keywords(pregunta):
 
                 "peso":
                     float(keyword["peso"])
+
+            })
+
+        # Coincidencia parcial suficientemente fuerte
+        elif porcentaje >= 0.5:
+
+            encontradas.append({
+
+                "conocimiento_id":
+                    keyword["conocimiento_id"],
+
+                "keyword_id":
+                    keyword["keyword_id"],
+
+                "palabra":
+                    palabra_original,
+
+                "peso":
+                    float(keyword["peso"]) * porcentaje
+
             })
 
     return encontradas
 
+
+# ============================================================
+# CALCULAR PUNTAJES
+# ============================================================
 
 def calcular_puntajes_keywords(pregunta):
     """
@@ -125,8 +174,12 @@ def calcular_puntajes_keywords(pregunta):
 
         if conocimiento_id not in puntajes:
 
-            puntajes[conocimiento_id] = 0.0
+            puntajes[
+                conocimiento_id
+            ] = 0.0
 
-        puntajes[conocimiento_id] += peso
+        puntajes[
+            conocimiento_id
+        ] += peso
 
     return puntajes

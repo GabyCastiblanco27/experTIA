@@ -31,11 +31,11 @@ from app.repository import (
 # PESOS DEL MOTOR
 # ============================================================
 
-PESO_CONCEPTO = 0.50
+PESO_CONCEPTO = 0.60
 
 PESO_KEYWORDS = 0.30
 
-PESO_INTENCION = 0.20
+PESO_INTENCION = 0.10
 
 
 # ============================================================
@@ -74,24 +74,27 @@ def calcular_score_keywords(
     puntajes_keywords,
     conocimiento
 ):
+    """
+    Normaliza el puntaje de keywords.
+
+    Un conocimiento obtiene mayor puntuación
+    cuando la pregunta coincide con varias
+    keywords relacionadas.
+    """
 
     puntaje = puntajes_keywords.get(
         conocimiento_id,
-        0
+        0.0
     )
-
-    # Las keywords del conocimiento
-    # determinan el máximo posible.
-    #
-    # Para no hacer otra consulta por conocimiento,
-    # usamos el puntaje encontrado como señal
-    # normalizada posteriormente.
 
     if puntaje <= 0:
         return 0.0
 
+    # Evitamos que muchas keywords hagan que
+    # el resultado supere 1.0.
+
     return min(
-        puntaje / 3.0,
+        puntaje / 2.0,
         1.0
     )
 

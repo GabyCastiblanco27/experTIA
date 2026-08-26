@@ -20,7 +20,10 @@ def similitud_tokens(
 ):
     """
     Calcula similitud entre dos textos
-    utilizando sus tokens normalizados.
+    utilizando tokens normalizados.
+
+    Se mide principalmente cuánto del texto
+    comparado está presente en la pregunta.
     """
 
     tokens1 = set(
@@ -35,15 +38,50 @@ def similitud_tokens(
         return 0.0
 
     interseccion = (
-        tokens1 & tokens2
+        tokens1
+        &
+        tokens2
     )
 
-    # Proporción de tokens de la pregunta
-    # que aparecen en el texto comparado.
-    return (
+    if not interseccion:
+        return 0.0
+
+    # --------------------------------------------------------
+    # Cobertura de la pregunta
+    # --------------------------------------------------------
+
+    cobertura_pregunta = (
         len(interseccion)
         /
         len(tokens1)
+    )
+
+    # --------------------------------------------------------
+    # Cobertura del contenido
+    # --------------------------------------------------------
+
+    cobertura_contenido = (
+        len(interseccion)
+        /
+        len(tokens2)
+    )
+
+    # --------------------------------------------------------
+    # Usamos la mejor cobertura
+    #
+    # Esto permite:
+    #
+    # "se me dañaron las botas, como solicito unas nuevas"
+    #
+    # vs
+    #
+    # "se me dañaron las botas"
+    #
+    # --------------------------------------------------------
+
+    return max(
+        cobertura_pregunta,
+        cobertura_contenido
     )
 
 
@@ -56,10 +94,9 @@ def similitud_texto(
     texto2
 ):
     """
-    Calcula la similitud entre dos textos
-    utilizando:
+    Calcula similitud entre dos textos utilizando:
 
-    - similitud por tokens
+    - coincidencia de tokens
     - similitud de secuencia
     """
 
@@ -89,9 +126,12 @@ def similitud_texto(
         ).ratio()
     )
 
-    return max(
-        score_tokens,
-        score_secuencia
+    return min(
+        max(
+            score_tokens,
+            score_secuencia
+        ),
+        1.0
     )
 
 
@@ -105,10 +145,11 @@ def mejor_pregunta_alternativa(
 ):
     """
     Encuentra la pregunta alternativa
-    más parecida a la pregunta del usuario.
+    más relacionada con la pregunta del usuario.
     """
 
     if not preguntas_alternativas:
+
         return 0.0
 
     mejor = 0.0
@@ -116,6 +157,7 @@ def mejor_pregunta_alternativa(
     for alternativa in preguntas_alternativas:
 
         if not alternativa:
+
             continue
 
         score = similitud_texto(
@@ -147,9 +189,9 @@ def calcular_score_conceptual(
 
     Componentes:
 
-    - Preguntas alternativas: 55 %
-    - Título: 30 %
-    - Descripción: 15 %
+    - Preguntas alternativas: 65 %
+    - Título: 25 %
+    - Descripción: 10 %
     """
 
     score_alternativas = (
@@ -187,19 +229,20 @@ def calcular_score_conceptual(
 
         score_alternativas
         *
-        0.55
+        0.65
 
         +
 
         score_titulo
         *
-        0.30
+        0.25
 
         +
 
         score_descripcion
         *
-        0.15
+        0.10
+
     )
 
     return {
