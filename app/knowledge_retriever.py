@@ -163,10 +163,8 @@ def construir_resultado(
 # ============================================================
 # BÚSQUEDA PRINCIPAL
 # ============================================================
-
 def buscar_conocimiento(
-    pregunta,
-    top_k=5
+    pregunta
 ):
 
     conocimientos = (
@@ -186,8 +184,6 @@ def buscar_conocimiento(
             "confianza": 0,
 
             "resultado": None,
-
-            "resultados": [],
 
             "intencion": None,
 
@@ -252,7 +248,10 @@ def buscar_conocimiento(
             )
         )
 
+        # ----------------------------------------------------
         # Score conceptual
+        # ----------------------------------------------------
+
         conceptual = (
             calcular_score_conceptual(
 
@@ -268,7 +267,10 @@ def buscar_conocimiento(
             conceptual["score"]
         )
 
+        # ----------------------------------------------------
         # Score keywords
+        # ----------------------------------------------------
+
         score_keywords = (
             calcular_score_keywords(
 
@@ -280,7 +282,10 @@ def buscar_conocimiento(
             )
         )
 
+        # ----------------------------------------------------
         # Score final
+        # ----------------------------------------------------
+
         score_final = (
 
             score_concepto
@@ -323,19 +328,17 @@ def buscar_conocimiento(
     # --------------------------------------------------------
 
     resultados.sort(
+
         key=lambda x: x["score"],
+
         reverse=True
     )
 
-    mejores = resultados[
-        :top_k
-    ]
-
     # --------------------------------------------------------
-    # Mejor resultado
+    # Verificar resultados
     # --------------------------------------------------------
 
-    if not mejores:
+    if not resultados:
 
         return {
 
@@ -345,49 +348,80 @@ def buscar_conocimiento(
 
             "resultado": None,
 
-            "resultados": [],
-
             "intencion": intencion,
 
             "mensaje":
                 "No se encontraron resultados."
         }
 
-    mejor = mejores[0]
+    # --------------------------------------------------------
+    # Obtener SOLO el mejor resultado
+    # --------------------------------------------------------
 
+    mejor = resultados[0]
+
+    # --------------------------------------------------------
     # Umbral mínimo
+    # --------------------------------------------------------
+
     UMBRAL_CONFIANZA = 0.35
 
-    resultados_formateados = []
-
-    for resultado in mejores:
-
-        resultados_formateados.append(
-
-            construir_resultado(
-
-                resultado["conocimiento"],
-
-                resultado["score"],
-
-                resultado["score_concepto"],
-
-                resultado["score_keywords"],
-
-                resultado["score_intencion"]
-            )
-        )
-
     encontrado = (
+
         mejor["score"]
         >=
         UMBRAL_CONFIANZA
     )
 
+    # --------------------------------------------------------
+    # Si no supera el umbral
+    # --------------------------------------------------------
+
+    if not encontrado:
+
+        return {
+
+            "encontrado": False,
+
+            "confianza":
+                round(
+                    mejor["score"],
+                    2
+                ),
+
+            "resultado": None,
+
+            "intencion": intencion,
+
+            "mensaje":
+                "No se encontró un conocimiento con suficiente confianza."
+        }
+
+    # --------------------------------------------------------
+    # Construir únicamente el mejor resultado
+    # --------------------------------------------------------
+
+    resultado_final = construir_resultado(
+
+        mejor["conocimiento"],
+
+        mejor["score"],
+
+        mejor["score_concepto"],
+
+        mejor["score_keywords"],
+
+        mejor["score_intencion"]
+    )
+
+    # --------------------------------------------------------
+    # Respuesta final
+    # --------------------------------------------------------
+
     return {
 
         "encontrado":
-            encontrado,
+            True,
 
         "confianza":
             round(
@@ -396,23 +430,11 @@ def buscar_conocimiento(
             ),
 
         "resultado":
-            (
-                resultados_formateados[0]
-                if encontrado
-                else None
-            ),
-
-        "resultados":
-            resultados_formateados,
+            resultado_final,
 
         "intencion":
             intencion,
 
         "mensaje":
-            (
-                "Conocimiento encontrado."
-                if encontrado
-                else
-                "No se encontró un conocimiento con suficiente confianza."
-            )
+            "Conocimiento encontrado."
     }

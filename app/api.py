@@ -4,8 +4,6 @@ api.py
 API REST del motor de búsqueda de ExperTIA.
 """
 
-from typing import Optional
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -41,14 +39,6 @@ class ConsultaRequest(BaseModel):
         min_length=1
     )
 
-    usuario: Optional[str] = None
-
-    top_k: int = Field(
-        default=5,
-        ge=1,
-        le=20
-    )
-
 
 # ============================================================
 # HEALTH CHECK
@@ -79,7 +69,6 @@ def health():
     finally:
 
         if conexion:
-
             conexion.close()
 
 
@@ -98,13 +87,8 @@ def buscar(
         # Ejecutar motor de búsqueda
         # ----------------------------------------------------
 
-        resultado = (
-            buscar_conocimiento(
-
-                consulta.pregunta,
-
-                consulta.top_k
-            )
+        resultado = buscar_conocimiento(
+            consulta.pregunta
         )
 
         # ----------------------------------------------------
@@ -127,7 +111,7 @@ def buscar(
 
         save_query_history(
 
-            usuario=consulta.usuario,
+            usuario=None,
 
             pregunta=consulta.pregunta,
 
@@ -139,7 +123,65 @@ def buscar(
             )
         )
 
-        return resultado
+        # ----------------------------------------------------
+        # Devolver solamente la información necesaria
+        # ----------------------------------------------------
+
+        if not resultado.get("encontrado"):
+
+            return {
+
+                "encontrado": False,
+
+                "confianza":
+                    resultado.get(
+                        "confianza",
+                        0
+                    ),
+
+                "respuesta":
+                    "No encontré información específica sobre tu consulta.",
+
+                "titulo": None,
+
+                "area": None,
+
+                "proceso": None,
+
+                "responsable": None,
+
+                "recursos": []
+            }
+
+        conocimiento = (
+            resultado["resultado"]
+        )
+
+        return {
+
+            "encontrado": True,
+
+            "confianza":
+                conocimiento["confianza"],
+
+            "titulo":
+                conocimiento["titulo"],
+
+            "respuesta":
+                conocimiento["respuesta"],
+
+            "area":
+                conocimiento["area"],
+
+            "proceso":
+                conocimiento["proceso"],
+
+            "responsable":
+                conocimiento["responsable"],
+
+            "recursos":
+                conocimiento["recursos"]
+        }
 
     except Exception as error:
 

@@ -120,7 +120,6 @@ def get_knowledge_candidates():
             c.proceso_id,
             p.nombre AS proceso,
 
-
             /*
              * Preguntas alternativas
              */
@@ -138,7 +137,6 @@ def get_knowledge_candidates():
                 ),
                 ''
             ) AS preguntas_alternativas,
-
 
             /*
              * Keywords
@@ -173,7 +171,6 @@ def get_knowledge_candidates():
                 ''
             ) AS keywords,
 
-
             /*
              * Recursos
              */
@@ -186,7 +183,10 @@ def get_knowledge_candidates():
                         || '::'
                         || r.tipo
                         || '::'
-                        || COALESCE(r.url, '')
+                        || COALESCE(
+                            r.url,
+                            ''
+                        )
                         || '::'
                         || COALESCE(
                             r.descripcion,
@@ -208,17 +208,13 @@ def get_knowledge_candidates():
                 ''
             ) AS recursos
 
-
         FROM conocimientos c
-
 
         LEFT JOIN areas a
             ON a.id = c.area_id
 
-
         LEFT JOIN procesos p
             ON p.id = c.proceso_id
-
 
         WHERE UPPER(
             COALESCE(
@@ -227,7 +223,6 @@ def get_knowledge_candidates():
             )
         ) = 'ACTIVO'
 
-
         AND (
             a.id IS NULL
             OR COALESCE(
@@ -235,7 +230,6 @@ def get_knowledge_candidates():
                 TRUE
             ) = TRUE
         )
-
 
         AND (
             p.id IS NULL
@@ -266,8 +260,10 @@ def save_query_history(
     confianza
 ):
     """
-    Guarda la consulta realizada por el usuario
-    en historial_consultas.
+    Guarda la consulta realizada en historial_consultas.
+
+    El usuario puede ser NULL porque la API actualmente
+    solo necesita recibir la pregunta.
     """
 
     sql = """
@@ -314,12 +310,12 @@ def save_query_history(
 
 
 # ============================================================
-# FUNCIONES DE COMPATIBILIDAD
+# OBTENER CONOCIMIENTOS
 # ============================================================
 
 def obtener_conocimientos():
     """
-    Obtiene los conocimientos activos.
+    Obtiene únicamente los conocimientos activos.
 
     Esta función mantiene compatibilidad con
     knowledge_retriever.py.
@@ -362,9 +358,14 @@ def obtener_conocimientos():
     return resultado
 
 
+# ============================================================
+# PREGUNTAS ALTERNATIVAS
+# ============================================================
+
 def obtener_preguntas_alternativas():
     """
-    Obtiene las preguntas alternativas activas.
+    Obtiene las preguntas alternativas asociadas
+    a conocimientos activos.
     """
 
     sql = """
@@ -395,12 +396,26 @@ def obtener_preguntas_alternativas():
             return cursor.fetchall()
 
 
+# ============================================================
+# RECURSOS POR CONOCIMIENTO
+# ============================================================
+
 def obtener_recursos_por_conocimiento(
     conocimiento_id
 ):
     """
     Obtiene los recursos activos asociados
     a un conocimiento.
+
+    Ejemplo:
+
+    {
+        "id": 1,
+        "nombre": "Solicitud Pago Parcial de Cesantías",
+        "tipo": "XLSX",
+        "url": "https://...",
+        "descripcion": "Formato oficial..."
+    }
     """
 
     sql = """
@@ -432,4 +447,29 @@ def obtener_recursos_por_conocimiento(
                 (conocimiento_id,)
             )
 
-            return cursor.fetchall()
+            filas = cursor.fetchall()
+
+            recursos = []
+
+            for fila in filas:
+
+                recursos.append({
+
+                    "id":
+                        fila["id"],
+
+                    "nombre":
+                        fila["nombre"],
+
+                    "tipo":
+                        fila["tipo"],
+
+                    "url":
+                        fila["url"],
+
+                    "descripcion":
+                        fila["descripcion"]
+
+                })
+
+            return recursos
