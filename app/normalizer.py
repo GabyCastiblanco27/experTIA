@@ -2,6 +2,23 @@
 normalizer.py
 -------------
 Normalización de preguntas realizadas a ExperTIA.
+
+La normalización permite reconocer diferentes formas
+de expresar una misma idea.
+
+Ejemplos:
+
+    radicar      -> radicacion
+    radicación   -> radicacion
+
+    factura      -> factura
+    facturas     -> factura
+
+    solicitar    -> solicitud
+    solicito     -> solicitud
+
+    cambiar      -> cambio
+    cambios      -> cambio
 """
 
 import re
@@ -42,15 +59,10 @@ STOPWORDS = {
     "o",
     "u",
     "como",
-    "cómo",
     "donde",
-    "dónde",
     "cuando",
-    "cuándo",
     "cual",
-    "cuál",
     "cuales",
-    "cuáles",
     "puedo",
     "puede",
     "pueden",
@@ -64,13 +76,13 @@ STOPWORDS = {
 
 
 # ============================================================
-# REEMPLAZOS
+# REEMPLAZOS LÉXICOS
 # ============================================================
 
 REPLACEMENTS = {
 
     # --------------------------------------------------------
-    # Retiros
+    # RETIROS / CESANTÍAS
     # --------------------------------------------------------
 
     "retirar": "retiro",
@@ -78,7 +90,7 @@ REPLACEMENTS = {
     "retiro": "retiro",
 
     # --------------------------------------------------------
-    # Solicitudes
+    # SOLICITUDES
     # --------------------------------------------------------
 
     "solicitar": "solicitud",
@@ -87,7 +99,7 @@ REPLACEMENTS = {
     "solicitud": "solicitud",
 
     # --------------------------------------------------------
-    # Trámites
+    # TRÁMITES
     # --------------------------------------------------------
 
     "tramitar": "tramite",
@@ -96,7 +108,7 @@ REPLACEMENTS = {
     "tramite": "tramite",
 
     # --------------------------------------------------------
-    # Descargas
+    # DESCARGAS
     # --------------------------------------------------------
 
     "descargar": "descarga",
@@ -105,7 +117,7 @@ REPLACEMENTS = {
     "descarga": "descarga",
 
     # --------------------------------------------------------
-    # Actualizaciones
+    # ACTUALIZACIONES
     # --------------------------------------------------------
 
     "actualizar": "actualizacion",
@@ -114,13 +126,140 @@ REPLACEMENTS = {
     "actualizacion": "actualizacion",
 
     # --------------------------------------------------------
-    # Reportes
+    # REPORTES
     # --------------------------------------------------------
 
     "reportar": "reporte",
     "reporto": "reporte",
     "reportes": "reporte",
-    "reporte": "reporte"
+    "reporte": "reporte",
+
+    # --------------------------------------------------------
+    # RADICACIÓN / RADICAR
+    # --------------------------------------------------------
+
+    "radicar": "radicacion",
+    "radico": "radicacion",
+    "radican": "radicacion",
+    "radicado": "radicacion",
+    "radicados": "radicacion",
+    "radicacion": "radicacion",
+    "radicaciones": "radicacion",
+
+    # --------------------------------------------------------
+    # FACTURA / FACTURAS
+    # --------------------------------------------------------
+
+    "factura": "factura",
+    "facturas": "factura",
+    "facturacion": "facturacion",
+    "facturaciones": "facturacion",
+    "facturar": "facturacion",
+
+    # --------------------------------------------------------
+    # RECEPCIÓN
+    # --------------------------------------------------------
+
+    "recibir": "recepcion",
+    "recibo": "recepcion",
+    "reciben": "recepcion",
+    "recibimos": "recepcion",
+    "recepcion": "recepcion",
+    "recepciones": "recepcion",
+
+    # --------------------------------------------------------
+    # CIERRES
+    # --------------------------------------------------------
+
+    "cerrar": "cierre",
+    "cierres": "cierre",
+    "cierre": "cierre",
+
+    # --------------------------------------------------------
+    # CAMBIOS / REEMPLAZOS
+    # --------------------------------------------------------
+
+    "cambiar": "cambio",
+    "cambio": "cambio",
+    "cambios": "cambio",
+    "cambie": "cambio",
+    "reemplazar": "reemplazo",
+    "reemplazo": "reemplazo",
+    "reemplazos": "reemplazo",
+    "reemplazado": "reemplazo",
+
+    # --------------------------------------------------------
+    # REPOSICIÓN
+    # --------------------------------------------------------
+
+    "reponer": "reposicion",
+    "repongo": "reposicion",
+    "reponer": "reposicion",
+    "reposiciones": "reposicion",
+    "reposicion": "reposicion",
+
+    # --------------------------------------------------------
+    # DAÑOS
+    # --------------------------------------------------------
+
+    "dañado": "daño",
+    "dañada": "daño",
+    "dañados": "daño",
+    "dañadas": "daño",
+    "dañaron": "daño",
+    "dañe": "daño",
+    "daño": "daño",
+    "danos": "daño",
+
+    # --------------------------------------------------------
+    # PÉRDIDA
+    # --------------------------------------------------------
+
+    "perder": "perdida",
+    "perdi": "perdida",
+    "perdio": "perdida",
+    "perdieron": "perdida",
+    "perdida": "perdida",
+    "perdidas": "perdida",
+
+    # --------------------------------------------------------
+    # ASIGNACIÓN
+    # --------------------------------------------------------
+
+    "asignar": "asignacion",
+    "asigno": "asignacion",
+    "asignaciones": "asignacion",
+    "asignacion": "asignacion",
+
+    # --------------------------------------------------------
+    # SOLICITUD DE INFORMACIÓN
+    # --------------------------------------------------------
+
+    "consultar": "consulta",
+    "consulto": "consulta",
+    "consultas": "consulta",
+    "consulta": "consulta",
+
+    # --------------------------------------------------------
+    # FECHAS
+    # --------------------------------------------------------
+
+    "fecha": "fecha",
+    "fechas": "fecha",
+
+    # --------------------------------------------------------
+    # PLAZOS
+    # --------------------------------------------------------
+
+    "plazo": "plazo",
+    "plazos": "plazo",
+
+    # --------------------------------------------------------
+    # PROVEEDORES
+    # --------------------------------------------------------
+
+    "proveedor": "proveedor",
+    "proveedores": "proveedor"
 }
 
 
@@ -136,6 +275,7 @@ def remove_accents(text: str) -> str:
 
         cesantías -> cesantias
         nómina -> nomina
+        radicación -> radicacion
     """
 
     if not text:
@@ -165,11 +305,11 @@ def normalize(text: str) -> str:
 
     Ejemplo:
 
-        ¿Cómo retiro mis cesantías?
+        ¿Cuál es el plazo para radicar una factura a proveedores?
 
-    Resultado:
+    Resultado aproximado:
 
-        retiro cesantias
+        plazo radicacion factura proveedor
     """
 
     if not text:
@@ -219,7 +359,7 @@ def normalize(text: str) -> str:
         if token in STOPWORDS:
             continue
 
-        # Aplicar normalización léxica
+        # Aplicar equivalencia léxica
         token = REPLACEMENTS.get(
             token,
             token
@@ -240,11 +380,16 @@ def tokenize(text: str) -> list[str]:
 
     Ejemplo:
 
-        "¿Cómo retiro mis cesantías?"
+        ¿Cuál es el plazo para radicar una factura a proveedores?
 
     Resultado:
 
-        ["retiro", "cesantias"]
+        [
+            "plazo",
+            "radicacion",
+            "factura",
+            "proveedor"
+        ]
     """
 
     normalized = normalize(text)
