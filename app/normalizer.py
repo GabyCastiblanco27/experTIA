@@ -259,7 +259,21 @@ REPLACEMENTS = {
     # --------------------------------------------------------
 
     "proveedor": "proveedor",
-    "proveedores": "proveedor"
+    "proveedores": "proveedor",
+
+    # --------------------------------------------------------
+    # PAGOS
+    # --------------------------------------------------------
+
+    "pagar": "pago",
+    "paga": "pago",
+    "pagan": "pago",
+    "pago": "pago",
+    "pagos": "pago",
+    "pagado": "pago",
+    "pagada": "pago",
+    "pagados": "pago",
+    "pagadas": "pago"
 }
 
 

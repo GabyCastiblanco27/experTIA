@@ -77,9 +77,8 @@ def calcular_score_keywords(
     """
     Normaliza el puntaje de keywords.
 
-    Un conocimiento obtiene mayor puntuación
-    cuando la pregunta coincide con varias
-    keywords relacionadas.
+    Las keywords específicas y compuestas ya reciben
+    mayor peso desde keyword_matcher.py.
     """
 
     puntaje = puntajes_keywords.get(

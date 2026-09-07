@@ -4,6 +4,9 @@ keyword_matcher.py
 Detecta keywords presentes en la pregunta
 y calcula qué conocimientos están relacionados
 con ellas.
+
+Las keywords compuestas tienen mayor peso que
+las keywords genéricas de una sola palabra.
 """
 
 from app.normalizer import normalize, tokenize
@@ -16,13 +19,16 @@ from app.repository import get_keyword_matches
 
 def detectar_keywords(pregunta):
     """
-    Detecta las keywords relacionadas con la pregunta.
+    Detecta keywords relacionadas con la pregunta.
 
-    Permite coincidencias:
+    Se consideran:
 
-    - Exactas
-    - De varias palabras
-    - Parciales
+    - Coincidencias exactas de una palabra.
+    - Coincidencias exactas de varias palabras.
+    - Coincidencias parciales de keywords compuestas.
+
+    Las keywords compuestas reciben mayor peso porque
+    representan una relación más específica.
     """
 
     texto_normalizado = normalize(pregunta)
@@ -56,11 +62,19 @@ def detectar_keywords(pregunta):
         if not tokens_keyword:
             continue
 
+        peso_base = float(
+            keyword["peso"]
+        )
+
+        cantidad_tokens = len(
+            tokens_keyword
+        )
+
         # ====================================================
         # KEYWORD DE UNA SOLA PALABRA
         # ====================================================
 
-        if len(tokens_keyword) == 1:
+        if cantidad_tokens == 1:
 
             token_keyword = next(
                 iter(tokens_keyword)
@@ -80,8 +94,13 @@ def detectar_keywords(pregunta):
                         palabra_original,
 
                     "peso":
-                        float(keyword["peso"])
+                        peso_base,
 
+                    "es_compuesta":
+                        False,
+
+                    "cantidad_tokens":
+                        1
                 })
 
             continue
@@ -96,18 +115,33 @@ def detectar_keywords(pregunta):
             tokens_pregunta
         )
 
-        # Porcentaje de palabras de la keyword
-        # encontradas en la pregunta.
-
         porcentaje = (
             len(coincidencias)
             /
             len(tokens_keyword)
         )
 
-        # Coincidencia completa
+        # ====================================================
+        # COINCIDENCIA COMPLETA
+        # ====================================================
+
         if porcentaje >= 1.0:
 
+            # Las keywords compuestas tienen
+            # mayor importancia que las genéricas.
+
+            multiplicador_especificidad = (
+                1.0
+                +
+                0.5 * (cantidad_tokens - 1)
+            )
+
+            peso_ajustado = (
+                peso_base
+                *
+                multiplicador_especificidad
+            )
+
             encontradas.append({
 
                 "conocimiento_id":
@@ -120,12 +154,34 @@ def detectar_keywords(pregunta):
                     palabra_original,
 
                 "peso":
-                    float(keyword["peso"])
+                    peso_ajustado,
 
+                "es_compuesta":
+                    True,
+
+                "cantidad_tokens":
+                    cantidad_tokens
             })
 
-        # Coincidencia parcial suficientemente fuerte
+        # ====================================================
+        # COINCIDENCIA PARCIAL
+        # ====================================================
+
         elif porcentaje >= 0.5:
+
+            multiplicador_especificidad = (
+                1.0
+                +
+                0.5 * (cantidad_tokens - 1)
+            )
+
+            peso_ajustado = (
+                peso_base
+                *
+                porcentaje
+                *
+                multiplicador_especificidad
+            )
 
             encontradas.append({
 
@@ -139,8 +195,13 @@ def detectar_keywords(pregunta):
                     palabra_original,
 
                 "peso":
-                    float(keyword["peso"]) * porcentaje
+                    peso_ajustado,
 
+                "es_compuesta":
+                    True,
+
+                "cantidad_tokens":
+                    cantidad_tokens
             })
 
     return encontradas
@@ -152,8 +213,10 @@ def detectar_keywords(pregunta):
 
 def calcular_puntajes_keywords(pregunta):
     """
-    Calcula el puntaje acumulado de keywords
-    para cada conocimiento.
+    Calcula el puntaje de keywords por conocimiento.
+
+    Las coincidencias específicas tienen mayor influencia
+    que las coincidencias genéricas.
     """
 
     keywords = detectar_keywords(
