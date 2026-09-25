@@ -425,7 +425,10 @@ def buscar_conocimiento(
                 round(
                     mejor["score_intencion"],
                     4
-                )
+                ),
+
+            "keywords_detectadas":
+                puntajes_keywords
         },
 
         "mensaje":
