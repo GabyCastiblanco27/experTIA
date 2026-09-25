@@ -20,15 +20,10 @@ def similitud_tokens(
 ):
     """
     Calcula similitud entre dos textos utilizando
-    tokens normalizados.
+    tokens normalizados mediante F1.
 
-    Se utiliza una medida basada en F1:
-
-        precision = coincidencias / tokens del contenido
-        recall    = coincidencias / tokens de la pregunta
-
-    Esto evita que una coincidencia parcial de una
-    sola palabra produzca una similitud artificialmente alta.
+    Se penalizan las coincidencias de una sola palabra
+    para evitar falsos positivos.
     """
 
     tokens1 = set(
@@ -50,6 +45,16 @@ def similitud_tokens(
 
     if not interseccion:
         return 0.0
+
+    # --------------------------------------------------------
+    # Una sola palabra coincidente
+    # --------------------------------------------------------
+
+    if len(interseccion) == 1:
+
+        # Una sola palabra compartida no debe generar
+        # una similitud conceptual alta.
+        return 0.05
 
     # --------------------------------------------------------
     # Precisión
@@ -76,6 +81,7 @@ def similitud_tokens(
     # --------------------------------------------------------
 
     if precision + recall == 0:
+
         return 0.0
 
     score = (
@@ -88,23 +94,10 @@ def similitud_tokens(
         (precision + recall)
     )
 
-    # --------------------------------------------------------
-    # Bonus por coincidencias múltiples
-    #
-    # Dos o más palabras compartidas indican
-    # una relación conceptual más fuerte.
-    # --------------------------------------------------------
-
+    # Bonus moderado por múltiples coincidencias
     if len(interseccion) >= 2:
 
         score += 0.10
-
-    elif len(interseccion) == 1:
-
-        # Una sola palabra no debe ser suficiente
-        # para generar un score conceptual elevado.
-
-        score *= 0.50
 
     return min(
         score,
@@ -126,8 +119,8 @@ def similitud_texto(
     - coincidencia de tokens
     - similitud de secuencia
 
-    Se prioriza la coincidencia de tokens cuando
-    existen varias palabras relevantes en común.
+    Las coincidencias de una sola palabra tienen
+    una influencia mínima.
     """
 
     texto1 = normalize(
@@ -139,7 +132,46 @@ def similitud_texto(
     )
 
     if not texto1 or not texto2:
+
         return 0.0
+
+    tokens1 = set(
+        tokenize(texto1)
+    )
+
+    tokens2 = set(
+        tokenize(texto2)
+    )
+
+    coincidencias = (
+        tokens1
+        &
+        tokens2
+    )
+
+    # --------------------------------------------------------
+    # Sin coincidencias
+    # --------------------------------------------------------
+
+    if not coincidencias:
+
+        return 0.0
+
+    # --------------------------------------------------------
+    # Una sola coincidencia
+    # --------------------------------------------------------
+
+    if len(coincidencias) == 1:
+
+        # No permitimos que SequenceMatcher
+        # convierta una coincidencia genérica
+        # en un score conceptual alto.
+
+        return 0.05
+
+    # --------------------------------------------------------
+    # Varias coincidencias
+    # --------------------------------------------------------
 
     score_tokens = (
         similitud_tokens(
@@ -156,44 +188,14 @@ def similitud_texto(
         ).ratio()
     )
 
-    # --------------------------------------------------------
-    # Si existen al menos dos tokens coincidentes,
-    # damos prioridad al score por tokens.
-    # --------------------------------------------------------
+    # Cuando existen varias palabras coincidentes,
+    # el contenido semántico por tokens tiene mayor peso.
 
-    tokens1 = set(
-        tokenize(texto1)
+    score = (
+        score_tokens * 0.80
+        +
+        score_secuencia * 0.20
     )
-
-    tokens2 = set(
-        tokenize(texto2)
-    )
-
-    coincidencias = (
-        tokens1
-        &
-        tokens2
-    )
-
-    if len(coincidencias) >= 2:
-
-        score = (
-            score_tokens * 0.75
-            +
-            score_secuencia * 0.25
-        )
-
-    else:
-
-        # Cuando solamente coincide una palabra,
-        # reducimos la influencia de SequenceMatcher
-        # para evitar falsos positivos.
-
-        score = (
-            score_tokens * 0.40
-            +
-            score_secuencia * 0.10
-        )
 
     return min(
         score,
