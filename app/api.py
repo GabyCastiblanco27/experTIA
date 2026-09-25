@@ -150,13 +150,7 @@ def buscar(
 
                 "responsable": None,
 
-                "recursos": [],
-
-                "detalle_ranking":
-                    resultado.get(
-                        "detalle_ranking",
-                        {}
-                    )
+                "recursos": []
             }
 
         conocimiento = (
