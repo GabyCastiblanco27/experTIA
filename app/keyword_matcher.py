@@ -77,47 +77,52 @@ def detectar_keywords(pregunta):
         if cantidad_tokens == 1:
 
             token_keyword = next(
-            iter(tokens_keyword)
-        )
+                iter(tokens_keyword)
+            )
 
-        if token_keyword in tokens_pregunta:
+            if token_keyword in tokens_pregunta:
 
-             # Las keywords de una sola palabra son
-            # consideradas coincidencias genéricas.
-            #
-            # Ejemplo:
-            # "reporte"
-            # "proveedor"
-            # "factura"
-            #
-            # No deben tener suficiente peso para
-            # seleccionar por sí solas un conocimiento.
+                # Las keywords de una sola palabra son
+                # consideradas coincidencias genéricas.
+                #
+                # Ejemplo:
+                # "reporte"
+                # "proveedor"
+                # "factura"
+                #
+                # No deben tener suficiente peso para
+                # seleccionar por sí solas un conocimiento.
 
-            peso_ajustado = peso_base * 0.40
+                peso_ajustado = (
+                    peso_base * 0.40
+                )
 
-            encontradas.append({
+                encontradas.append({
 
-                "conocimiento_id":
-                    keyword["conocimiento_id"],
+                    "conocimiento_id":
+                        keyword["conocimiento_id"],
 
-                "keyword_id":
-                    keyword["keyword_id"],
+                    "keyword_id":
+                        keyword["keyword_id"],
 
-                "palabra":
-                    palabra_original,
+                    "palabra":
+                        palabra_original,
 
-                "peso":
-                    peso_ajustado,
+                    "peso":
+                        peso_ajustado,
 
-                "es_compuesta":
-                    False,
+                    "es_compuesta":
+                        False,
 
-                "cantidad_tokens":
-                    1
+                    "cantidad_tokens":
+                        1
 
-            })
+                })
 
-        continue
+            # IMPORTANTE:
+            # Solo continuamos aquí cuando la keyword
+            # realmente es de una sola palabra.
+            continue
 
         # ====================================================
         # KEYWORD DE VARIAS PALABRAS
