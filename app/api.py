@@ -150,7 +150,13 @@ def buscar(
 
                 "responsable": None,
 
-                "recursos": []
+                "recursos": [],
+
+                "detalle_ranking":
+                    resultado.get(
+                        "detalle_ranking",
+                        {}
+                    )
             }
 
         conocimiento = (
@@ -180,7 +186,13 @@ def buscar(
                 conocimiento["responsable"],
 
             "recursos":
-                conocimiento["recursos"]
+                conocimiento["recursos"],
+
+            "detalle_ranking":
+                conocimiento.get(
+                    "detalle_ranking",
+                    {}
+                )
         }
 
     except Exception as error:
