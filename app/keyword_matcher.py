@@ -186,41 +186,17 @@ def detectar_keywords(pregunta):
         # COINCIDENCIA PARCIAL
         # ====================================================
 
-        elif porcentaje >= 0.5:
-
-            multiplicador_especificidad = (
-                1.0
-                +
-                0.5 * (cantidad_tokens - 1)
-            )
-
-            peso_ajustado = (
-                peso_base
-                *
-                porcentaje
-                *
-                multiplicador_especificidad
-            )
+        elif porcentaje >= 0.5 and cantidad_tokens == 2:
+            multiplicador_especificidad = 1.0 + 0.5 * (cantidad_tokens - 1)
+            peso_ajustado = peso_base * porcentaje * multiplicador_especificidad
 
             encontradas.append({
-
-                "conocimiento_id":
-                    keyword["conocimiento_id"],
-
-                "keyword_id":
-                    keyword["keyword_id"],
-
-                "palabra":
-                    palabra_original,
-
-                "peso":
-                    peso_ajustado,
-
-                "es_compuesta":
-                    True,
-
-                "cantidad_tokens":
-                    cantidad_tokens
+                "conocimiento_id": keyword["conocimiento_id"],
+                "keyword_id": keyword["keyword_id"],
+                "palabra": palabra_original,
+                "peso": peso_ajustado,
+                "es_compuesta": True,
+                "cantidad_tokens": cantidad_tokens
             })
 
     return encontradas
