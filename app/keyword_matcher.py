@@ -77,33 +77,47 @@ def detectar_keywords(pregunta):
         if cantidad_tokens == 1:
 
             token_keyword = next(
-                iter(tokens_keyword)
-            )
+            iter(tokens_keyword)
+        )
 
-            if token_keyword in tokens_pregunta:
+        if token_keyword in tokens_pregunta:
 
-                encontradas.append({
+             # Las keywords de una sola palabra son
+            # consideradas coincidencias genéricas.
+            #
+            # Ejemplo:
+            # "reporte"
+            # "proveedor"
+            # "factura"
+            #
+            # No deben tener suficiente peso para
+            # seleccionar por sí solas un conocimiento.
 
-                    "conocimiento_id":
-                        keyword["conocimiento_id"],
+            peso_ajustado = peso_base * 0.40
 
-                    "keyword_id":
-                        keyword["keyword_id"],
+            encontradas.append({
 
-                    "palabra":
-                        palabra_original,
+                "conocimiento_id":
+                    keyword["conocimiento_id"],
 
-                    "peso":
-                        peso_base,
+                "keyword_id":
+                    keyword["keyword_id"],
 
-                    "es_compuesta":
-                        False,
+                "palabra":
+                    palabra_original,
 
-                    "cantidad_tokens":
-                        1
-                })
+                "peso":
+                    peso_ajustado,
 
-            continue
+                "es_compuesta":
+                    False,
+
+                "cantidad_tokens":
+                    1
+
+            })
+
+        continue
 
         # ====================================================
         # KEYWORD DE VARIAS PALABRAS
