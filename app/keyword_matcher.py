@@ -24,11 +24,13 @@ def detectar_keywords(pregunta):
     Se consideran:
 
     - Coincidencias exactas de una palabra.
-    - Coincidencias exactas de varias palabras.
-    - Coincidencias parciales de keywords compuestas.
+    - Coincidencias completas de varias palabras.
 
-    Las keywords compuestas reciben mayor peso porque
-    representan una relación más específica.
+    Las keywords de una sola palabra reciben un peso reducido
+    porque pueden ser términos genéricos.
+
+    Las keywords compuestas solo se consideran cuando todos
+    sus términos están presentes en la pregunta.
     """
 
     texto_normalizado = normalize(pregunta)
@@ -85,10 +87,11 @@ def detectar_keywords(pregunta):
                 # Las keywords de una sola palabra son
                 # consideradas coincidencias genéricas.
                 #
-                # Ejemplo:
+                # Ejemplos:
                 # "reporte"
                 # "proveedor"
                 # "factura"
+                # "retiro"
                 #
                 # No deben tener suficiente peso para
                 # seleccionar por sí solas un conocimiento.
@@ -120,8 +123,7 @@ def detectar_keywords(pregunta):
                 })
 
             # IMPORTANTE:
-            # Solo continuamos aquí cuando la keyword
-            # realmente es de una sola palabra.
+            # No procesamos esta keyword como compuesta.
             continue
 
         # ====================================================
@@ -146,8 +148,8 @@ def detectar_keywords(pregunta):
 
         if porcentaje >= 1.0:
 
-            # Las keywords compuestas tienen
-            # mayor importancia que las genéricas.
+            # Las keywords compuestas tienen mayor importancia
+            # porque representan una relación más específica.
 
             multiplicador_especificidad = (
                 1.0
@@ -180,24 +182,29 @@ def detectar_keywords(pregunta):
 
                 "cantidad_tokens":
                     cantidad_tokens
+
             })
 
-        # ====================================================
-        # COINCIDENCIA PARCIAL
-        # ====================================================
+        # IMPORTANTE:
+        # No existe coincidencia parcial para keywords
+        # compuestas.
+        #
+        # Ejemplo:
+        #
+        # Keyword:
+        # "Retiro de cesantías"
+        #
+        # Pregunta:
+        # "como retiro mi clima"
+        #
+        # Después de normalizar:
+        #
+        # Keyword  -> "retiro cesantias"
+        # Pregunta  -> "retiro clima"
+        #
+        # Solo coincide "retiro", por lo tanto la keyword
+        # compuesta NO obtiene puntos.
 
-        elif porcentaje >= 0.5 and cantidad_tokens == 2:
-            multiplicador_especificidad = 1.0 + 0.5 * (cantidad_tokens - 1)
-            peso_ajustado = peso_base * porcentaje * multiplicador_especificidad
-
-            encontradas.append({
-                "conocimiento_id": keyword["conocimiento_id"],
-                "keyword_id": keyword["keyword_id"],
-                "palabra": palabra_original,
-                "peso": peso_ajustado,
-                "es_compuesta": True,
-                "cantidad_tokens": cantidad_tokens
-            })
 
     return encontradas
 
