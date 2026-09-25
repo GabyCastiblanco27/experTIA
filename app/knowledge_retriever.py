@@ -381,23 +381,56 @@ def buscar_conocimiento(
 
     if not encontrado:
 
-        return {
+     return {
 
-            "encontrado": False,
+        "encontrado": False,
 
-            "confianza":
+        "confianza":
+            round(
+                mejor["score"],
+                2
+            ),
+
+        "resultado": None,
+
+        "intencion": intencion,
+
+        "detalle_ranking": {
+
+            "conocimiento_id":
+                mejor["conocimiento"]["id"],
+
+            "titulo":
+                mejor["conocimiento"]["titulo"],
+
+            "score_total":
                 round(
                     mejor["score"],
-                    2
+                    4
                 ),
 
-            "resultado": None,
+            "score_concepto":
+                round(
+                    mejor["score_concepto"],
+                    4
+                ),
 
-            "intencion": intencion,
+            "score_keywords":
+                round(
+                    mejor["score_keywords"],
+                    4
+                ),
 
-            "mensaje":
-                "No se encontró un conocimiento con suficiente confianza."
-        }
+            "score_intencion":
+                round(
+                    mejor["score_intencion"],
+                    4
+                )
+        },
+
+        "mensaje":
+            "No se encontró un conocimiento con suficiente confianza."
+    }
 
     # --------------------------------------------------------
     # Construir únicamente el mejor resultado
