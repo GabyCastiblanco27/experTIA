@@ -27,188 +27,106 @@ def similitud_tokens(texto1, texto2):
     if not interseccion:
         return 0.0
 
-    # ========================================================
-    # COINCIDENCIA EXACTA
-    # ========================================================
-    #
-    # Si ambos textos tienen exactamente los mismos tokens,
-    # la coincidencia es completa.
-    #
-    # Ejemplo:
-    #
-    # "udemy"
-    # "udemy"
-    #
-    # => 1.0
-    #
-
+    # Coincidencia exacta
     if tokens1 == tokens2:
         return 1.0
 
-    # ========================================================
-    # UNA SOLA COINCIDENCIA
-    # ========================================================
+    # Palabras demasiado genéricas para determinar por sí solas
+    tokens_genericos = {
+        "reporte",
+        "factura",
+        "proveedor",
+        "cambio",
+        "consulta",
+        "solicitud",
+        "dano",
+        "perdida",
+        "retiro",
+        "pago",
+        "fecha",
+        "cierre",
+        "novedad",
+        "proceso",
+        "informacion"
+    }
 
+    # Si todas las coincidencias son palabras genéricas,
+    # la similitud debe ser baja.
+    if interseccion.issubset(tokens_genericos):
+        return 0.10
+
+    # Una sola coincidencia
     if len(interseccion) == 1:
 
         token = next(iter(interseccion))
 
-        # Palabras demasiado genéricas que no deben
-        # determinar por sí solas un conocimiento.
-
-        tokens_genericos = {
-            "reporte",
-            "reporte",
-            "factura",
-            "proveedor",
-            "cambio",
-            "consulta",
-            "solicitud",
-            "daño",
-            "perdida",
-            "retiro",
-            "pago",
-            "fecha",
-            "cierre",
-            "novedad",
-            "proceso",
-            "informacion"
-        }
-
         if token in tokens_genericos:
             return 0.05
-
-        # Una palabra específica compartida puede ser
-        # una señal válida.
-        #
-        # Ejemplo:
-        #
-        # "udemy"
-        # "udemy"
-        #
-        # Pero no debe ser tan fuerte cuando forma parte
-        # de un texto mucho más largo.
 
         if len(tokens1) == 1 or len(tokens2) == 1:
             return 0.85
 
         return 0.20
 
-    # ========================================================
-    # DOS O MÁS COINCIDENCIAS
-    # ========================================================
-
+    # Coincidencias múltiples
     precision = len(interseccion) / len(tokens2)
     recall = len(interseccion) / len(tokens1)
 
     if precision + recall == 0:
         return 0.0
 
-    score = (
-        2 * precision * recall
-        /
-        (precision + recall)
-    )
+    score = 2 * precision * recall / (precision + recall)
 
     return min(score, 1.0)
-
 
 # ============================================================
 # SIMILITUD DE TEXTO
 # ============================================================
 
-def similitud_texto(
-    texto1,
-    texto2
-):
-    """
-    Calcula similitud entre dos textos utilizando:
 
-    - coincidencia de tokens
-    - similitud de secuencia
+def similitud_texto(texto1, texto2):
 
-    Las coincidencias de una sola palabra tienen
-    una influencia mínima.
-    """
-
-    texto1 = normalize(
-        texto1
-    )
-
-    texto2 = normalize(
-        texto2
-    )
+    texto1 = normalize(texto1)
+    texto2 = normalize(texto2)
 
     if not texto1 or not texto2:
-
         return 0.0
 
-    tokens1 = set(
-        tokenize(texto1)
-    )
+    tokens1 = set(tokenize(texto1))
+    tokens2 = set(tokenize(texto2))
 
-    tokens2 = set(
-        tokenize(texto2)
-    )
-
-    coincidencias = (
-        tokens1
-        &
-        tokens2
-    )
-
-    # --------------------------------------------------------
-    # Sin coincidencias
-    # --------------------------------------------------------
-
-    if not coincidencias:
-
+    if not tokens1 or not tokens2:
         return 0.0
 
-    # --------------------------------------------------------
-    # Una sola coincidencia
-    # --------------------------------------------------------
+    # Coincidencia exacta de los tokens
+    # Ejemplo:
+    # "que es udemy" -> {"udemy"}
+    # "que es udemy" -> {"udemy"}
+    if tokens1 == tokens2:
+        return 1.0
 
-    if len(coincidencias) == 1:
+    score_tokens = similitud_tokens(texto1, texto2)
+    score_secuencia = SequenceMatcher(
+        None,
+        texto1,
+        texto2
+    ).ratio()
 
-        # No permitimos que SequenceMatcher
-        # convierta una coincidencia genérica
-        # en un score conceptual alto.
+    coincidencias = tokens1 & tokens2
 
-        return 0.05
-
-    # --------------------------------------------------------
-    # Varias coincidencias
-    # --------------------------------------------------------
-
-    score_tokens = (
-        similitud_tokens(
-            texto1,
-            texto2
+    if len(coincidencias) >= 2:
+        score = (
+            score_tokens * 0.75
+            + score_secuencia * 0.25
         )
-    )
 
-    score_secuencia = (
-        SequenceMatcher(
-            None,
-            texto1,
-            texto2
-        ).ratio()
-    )
+    else:
+        score = (
+            score_tokens * 0.40
+            + score_secuencia * 0.10
+        )
 
-    # Cuando existen varias palabras coincidentes,
-    # el contenido semántico por tokens tiene mayor peso.
-
-    score = (
-        score_tokens * 0.80
-        +
-        score_secuencia * 0.20
-    )
-
-    return min(
-        score,
-        1.0
-    )
+    return min(score, 1.0)
 
 
 # ============================================================
