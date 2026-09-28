@@ -117,6 +117,20 @@ REPLACEMENTS = {
     "descarga": "descarga",
 
     # --------------------------------------------------------
+    # CARGAS / SUBIR
+    # --------------------------------------------------------
+
+    "subir": "subir",
+    "subo": "subir",
+    "subes": "subir",
+    "sube": "subir",
+    "suben": "subir",
+    "subimos": "subir",
+    "subido": "subir",
+    "subida": "subir",
+    "subidas": "subir",
+
+    # --------------------------------------------------------
     # ACTUALIZACIONES
     # --------------------------------------------------------
 
