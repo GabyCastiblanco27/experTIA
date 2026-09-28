@@ -14,95 +14,103 @@ from app.normalizer import normalize, tokenize
 # SIMILITUD POR TOKENS
 # ============================================================
 
-def similitud_tokens(
-    texto1,
-    texto2
-):
-    """
-    Calcula similitud entre dos textos utilizando
-    tokens normalizados mediante F1.
+def similitud_tokens(texto1, texto2):
 
-    Se penalizan las coincidencias de una sola palabra
-    para evitar falsos positivos.
-    """
-
-    tokens1 = set(
-        tokenize(texto1)
-    )
-
-    tokens2 = set(
-        tokenize(texto2)
-    )
+    tokens1 = set(tokenize(texto1))
+    tokens2 = set(tokenize(texto2))
 
     if not tokens1 or not tokens2:
         return 0.0
 
-    interseccion = (
-        tokens1
-        &
-        tokens2
-    )
+    interseccion = tokens1 & tokens2
 
     if not interseccion:
         return 0.0
 
-    # --------------------------------------------------------
-    # Una sola palabra coincidente
-    # --------------------------------------------------------
+    # ========================================================
+    # COINCIDENCIA EXACTA
+    # ========================================================
+    #
+    # Si ambos textos tienen exactamente los mismos tokens,
+    # la coincidencia es completa.
+    #
+    # Ejemplo:
+    #
+    # "udemy"
+    # "udemy"
+    #
+    # => 1.0
+    #
+
+    if tokens1 == tokens2:
+        return 1.0
+
+    # ========================================================
+    # UNA SOLA COINCIDENCIA
+    # ========================================================
 
     if len(interseccion) == 1:
 
-        # Una sola palabra compartida no debe generar
-        # una similitud conceptual alta.
-        return 0.05
+        token = next(iter(interseccion))
 
-    # --------------------------------------------------------
-    # Precisión
-    # --------------------------------------------------------
+        # Palabras demasiado genéricas que no deben
+        # determinar por sí solas un conocimiento.
 
-    precision = (
-        len(interseccion)
-        /
-        len(tokens2)
-    )
+        tokens_genericos = {
+            "reporte",
+            "reporte",
+            "factura",
+            "proveedor",
+            "cambio",
+            "consulta",
+            "solicitud",
+            "daño",
+            "perdida",
+            "retiro",
+            "pago",
+            "fecha",
+            "cierre",
+            "novedad",
+            "proceso",
+            "informacion"
+        }
 
-    # --------------------------------------------------------
-    # Recall
-    # --------------------------------------------------------
+        if token in tokens_genericos:
+            return 0.05
 
-    recall = (
-        len(interseccion)
-        /
-        len(tokens1)
-    )
+        # Una palabra específica compartida puede ser
+        # una señal válida.
+        #
+        # Ejemplo:
+        #
+        # "udemy"
+        # "udemy"
+        #
+        # Pero no debe ser tan fuerte cuando forma parte
+        # de un texto mucho más largo.
 
-    # --------------------------------------------------------
-    # F1
-    # --------------------------------------------------------
+        if len(tokens1) == 1 or len(tokens2) == 1:
+            return 0.85
+
+        return 0.20
+
+    # ========================================================
+    # DOS O MÁS COINCIDENCIAS
+    # ========================================================
+
+    precision = len(interseccion) / len(tokens2)
+    recall = len(interseccion) / len(tokens1)
 
     if precision + recall == 0:
-
         return 0.0
 
     score = (
-        2
-        *
-        precision
-        *
-        recall
+        2 * precision * recall
         /
         (precision + recall)
     )
 
-    # Bonus moderado por múltiples coincidencias
-    if len(interseccion) >= 2:
-
-        score += 0.10
-
-    return min(
-        score,
-        1.0
-    )
+    return min(score, 1.0)
 
 
 # ============================================================
