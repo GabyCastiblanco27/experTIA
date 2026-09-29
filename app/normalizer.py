@@ -276,6 +276,23 @@ REPLACEMENTS = {
     "proveedores": "proveedor",
 
     # --------------------------------------------------------
+    # CREACIÓN
+    # --------------------------------------------------------
+
+    "crear": "creacion",
+    "creo": "creacion",
+    "creas": "creacion",
+    "crea": "creacion",
+    "crean": "creacion",
+    "creamos": "creacion",
+    "creado": "creacion",
+    "creada": "creacion",
+    "creados": "creacion",
+    "creadas": "creacion",
+    "creacion": "creacion",
+    "creaciones": "creacion",
+
+    # --------------------------------------------------------
     # PAGOS
     # --------------------------------------------------------
 
