@@ -457,22 +457,40 @@ def buscar_conocimiento(
     # --------------------------------------------------------
 
     return {
-
-        "encontrado":
-            True,
-
-        "confianza":
+    "encontrado": True,
+    "confianza": round(
+        mejor["score"],
+        2
+    ),
+    "resultado": resultado_final,
+    "intencion": intencion,
+    "detalle_ranking": {
+        "conocimiento_id":
+            mejor["conocimiento"]["id"],
+        "titulo":
+            mejor["conocimiento"]["titulo"],
+        "score_total":
             round(
                 mejor["score"],
-                2
+                4
             ),
-
-        "resultado":
-            resultado_final,
-
-        "intencion":
-            intencion,
-
-        "mensaje":
-            "Conocimiento encontrado."
-    }
+        "score_concepto":
+            round(
+                mejor["score_concepto"],
+                4
+            ),
+        "score_keywords":
+            round(
+                mejor["score_keywords"],
+                4
+            ),
+        "score_intencion":
+            round(
+                mejor["score_intencion"],
+                4
+            ),
+        "keywords_detectadas":
+            puntajes_keywords
+    },
+    "mensaje": "Conocimiento encontrado."
+}
