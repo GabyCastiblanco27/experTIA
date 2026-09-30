@@ -89,14 +89,23 @@ REPLACEMENTS = {
     "retiros": "retiro",
     "retiro": "retiro",
 
-    # --------------------------------------------------------
-    # SOLICITUDES
+   # --------------------------------------------------------
+    # SOLICITUD
     # --------------------------------------------------------
 
     "solicitar": "solicitud",
     "solicito": "solicitud",
-    "solicitudes": "solicitud",
+    "solicita": "solicitud",
+    "solicitan": "solicitud",
     "solicitud": "solicitud",
+    "solicitudes": "solicitud",
+
+    "pedir": "solicitud",
+    "pido": "solicitud",
+    "pide": "solicitud",
+    "piden": "solicitud",   
+    "pedido": "solicitud",
+    "pedida": "solicitud",
 
     # --------------------------------------------------------
     # TRÁMITES
@@ -291,7 +300,7 @@ REPLACEMENTS = {
     "creadas": "creacion",
     "creacion": "creacion",
     "creaciones": "creacion",
-
+    
     # --------------------------------------------------------
     # PAGOS
     # --------------------------------------------------------
@@ -304,7 +313,45 @@ REPLACEMENTS = {
     "pagado": "pago",
     "pagada": "pago",
     "pagados": "pago",
-    "pagadas": "pago"
+    "pagadas": "pago",
+
+    # --------------------------------------------------------
+    # REGISTRO
+    # --------------------------------------------------------
+    "registrar": "registro",
+    "registro": "registro",
+    "registra": "registro",
+    "registras": "registro",
+    "registran": "registro",
+    "registramos": "registro",
+    "registrado": "registro",
+    "registrada": "registro",
+    "registrados": "registro",
+    "registradas": "registro",
+    "registros": "registro",
+
+    # --------------------------------------------------------
+    # ENVÍOS
+    # --------------------------------------------------------
+
+    "enviar": "envio",
+    "envio": "envio",
+    "envia": "envio",
+    "envian": "envio",
+    "enviamos": "envio",
+    "enviado": "envio",
+    "enviada": "envio",
+    "envios": "envio",
+
+    "mandar": "envio",
+    "mando": "envio",
+    "manda": "envio",
+    "mandan": "envio",
+
+    "despachar": "envio",
+    "despacho": "envio",
+    "despacha": "envio",
+    "despachado": "envio",
 }
 
 

@@ -40,6 +40,44 @@ TOKENS_GENERICOS = {
     "necesito",
 }
 
+# ============================================================
+# EQUIVALENCIAS DE ACCIONES
+# ============================================================
+
+EQUIVALENCIAS_ACCION = {
+    "creacion": {
+        "crear",
+        "creo",
+        "crea",
+        "creacion",
+        "registrar",
+        "registro",
+        "registra",
+        "registrado",
+        "registrada",
+        "ingresar",
+        "ingreso",
+        "ingresa",
+        "agregar",
+        "agrego",
+        "agrega",
+        "alta",
+    }
+}
+
+def obtener_grupo_equivalencia(token):
+    """
+    Devuelve el concepto común al que pertenece un token.
+    Si no existe equivalencia, devuelve el mismo token.
+    """
+
+    for grupo, variantes in EQUIVALENCIAS_ACCION.items():
+
+        if token == grupo or token in variantes:
+            return grupo
+
+    return token
+
 
 # ============================================================
 # SIMILITUD POR TOKENS
@@ -153,26 +191,117 @@ def similitud_texto(texto1, texto2):
         return 0.0
 
     # --------------------------------------------------------
+    # Convertir acciones equivalentes a un mismo concepto
+    # --------------------------------------------------------
+
+    conceptos1 = {
+        obtener_grupo_equivalencia(token)
+        for token in tokens1
+    }
+
+    conceptos2 = {
+        obtener_grupo_equivalencia(token)
+        for token in tokens2
+    }
+
+    # --------------------------------------------------------
     # Coincidencia exacta
     # --------------------------------------------------------
 
-    if tokens1 == tokens2:
+    if conceptos1 == conceptos2:
         return 1.0
 
     # --------------------------------------------------------
-    # Similitud por conceptos
+    # Coincidencias
     # --------------------------------------------------------
 
-    score_tokens = similitud_tokens(
-        texto1,
-        texto2
+    interseccion = conceptos1 & conceptos2
+
+    if not interseccion:
+        return 0.0
+
+    # --------------------------------------------------------
+    # Eliminar términos genéricos
+    # --------------------------------------------------------
+
+    relevantes1 = conceptos1 - TOKENS_GENERICOS
+    relevantes2 = conceptos2 - TOKENS_GENERICOS
+
+    coincidencias_relevantes = (
+        relevantes1
+        &
+        relevantes2
+    )
+
+    if not coincidencias_relevantes:
+
+        if interseccion.issubset(TOKENS_GENERICOS):
+            return 0.10
+
+        return 0.0
+
+    # --------------------------------------------------------
+    # Todos los conceptos relevantes de la pregunta
+    # están presentes en la referencia
+    #
+    # Ejemplo:
+    #
+    # registro proveedor
+    #
+    # vs
+    #
+    # registro proveedor nuevo
+    # --------------------------------------------------------
+
+    if (
+        relevantes1
+        and
+        relevantes1.issubset(relevantes2)
+    ):
+        return 0.85
+
+    # --------------------------------------------------------
+    # Coincidencia exacta de conceptos relevantes
+    # --------------------------------------------------------
+
+    if relevantes1 == relevantes2:
+        return 1.0
+
+    # --------------------------------------------------------
+    # Cobertura
+    # --------------------------------------------------------
+
+    cobertura1 = (
+        len(coincidencias_relevantes)
+        /
+        len(relevantes1)
+        if relevantes1
+        else 0.0
+    )
+
+    cobertura2 = (
+        len(coincidencias_relevantes)
+        /
+        len(relevantes2)
+        if relevantes2
+        else 0.0
+    )
+
+    if cobertura1 + cobertura2 == 0:
+        return 0.0
+
+    score_tokens = (
+        2
+        *
+        cobertura1
+        *
+        cobertura2
+        /
+        (cobertura1 + cobertura2)
     )
 
     # --------------------------------------------------------
     # Similitud de secuencia
-    #
-    # Se utiliza como complemento, no como criterio principal,
-    # porque el orden de las palabras puede cambiar.
     # --------------------------------------------------------
 
     score_secuencia = SequenceMatcher(
@@ -181,57 +310,20 @@ def similitud_texto(texto1, texto2):
         texto2
     ).ratio()
 
-    tokens_relevantes1 = (
-        tokens1 - TOKENS_GENERICOS
+    # --------------------------------------------------------
+    # Score final
+    # --------------------------------------------------------
+
+    score = (
+        score_tokens * 0.85
+        +
+        score_secuencia * 0.15
     )
-
-    tokens_relevantes2 = (
-        tokens2 - TOKENS_GENERICOS
-    )
-
-    coincidencias_relevantes = (
-        tokens_relevantes1
-        &
-        tokens_relevantes2
-    )
-
-    # --------------------------------------------------------
-    # Varias coincidencias relevantes
-    # --------------------------------------------------------
-
-    if len(coincidencias_relevantes) >= 2:
-
-        score = (
-            score_tokens * 0.85
-            +
-            score_secuencia * 0.15
-        )
-
-    # --------------------------------------------------------
-    # Una coincidencia relevante
-    # --------------------------------------------------------
-
-    elif len(coincidencias_relevantes) == 1:
-
-        score = (
-            score_tokens * 0.80
-            +
-            score_secuencia * 0.10
-        )
-
-    else:
-
-        score = (
-            score_tokens * 0.40
-            +
-            score_secuencia * 0.10
-        )
 
     return min(
         score,
         1.0
     )
-
 
 # ============================================================
 # PREGUNTAS ALTERNATIVAS
