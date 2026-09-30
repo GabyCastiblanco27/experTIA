@@ -18,21 +18,6 @@ from app.normalizer import normalize, tokenize
 # ============================================================
 
 TOKENS_GENERICOS = {
-    "reporte",
-    "factura",
-    "proveedor",
-    "cambio",
-    "consulta",
-    "solicitud",
-    "dano",
-    "perdida",
-    "retiro",
-    "pago",
-    "fecha",
-    "cierre",
-    "novedad",
-    "proceso",
-    "informacion",
     "como",
     "puedo",
     "puede",
