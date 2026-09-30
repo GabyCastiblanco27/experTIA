@@ -198,19 +198,7 @@ REPLACEMENTS = {
     "cierres": "cierre",
     "cierre": "cierre",
 
-    # --------------------------------------------------------
-    # CAMBIOS / REEMPLAZOS
-    # --------------------------------------------------------
-
-    "cambiar": "cambio",
-    "cambio": "cambio",
-    "cambios": "cambio",
-    "cambie": "cambio",
-    "reemplazar": "reemplazo",
-    "reemplazo": "reemplazo",
-    "reemplazos": "reemplazo",
-    "reemplazado": "reemplazo",
-
+   
     # --------------------------------------------------------
     # REPOSICIÓN
     # --------------------------------------------------------
@@ -225,15 +213,48 @@ REPLACEMENTS = {
     # DAÑOS
     # --------------------------------------------------------
 
-    "dañado": "daño",
-    "dañada": "daño",
-    "dañados": "daño",
-    "dañadas": "daño",
-    "dañaron": "daño",
-    "dañe": "daño",
-    "daño": "daño",
-    "danos": "daño",
+    "danado": "dano",
+    "danada": "dano",
+    "danados": "dano",
+    "danadas": "dano",
+    "danaron": "dano",
+    "dane": "dano",
+    "dano": "dano",
+    "danos": "dano",
+    "danar": "dano",
 
+    # --------------------------------------------------------
+    # CAMBIAR / REEMPLAZAR
+    # --------------------------------------------------------
+
+    "cambiar": "cambio",
+    "cambio": "cambio",
+    "cambie": "cambio",
+    "cambias": "cambio",
+    "cambia": "cambio",
+    "cambian": "cambio",
+    "cambiamos": "cambio",
+    "cambiado": "cambio",
+    "cambiada": "cambio",
+    "cambiados": "cambio",
+    "cambiadas": "cambio",
+    "cambiarla": "cambio",
+    "cambiarlo": "cambio",
+    "cambiarlas": "cambio",
+    "cambiarlos": "cambio",
+
+    "reemplazar": "reemplazo",
+    "reemplazo": "reemplazo",
+    "reemplazos": "reemplazo",
+    "reemplazado": "reemplazo",
+    "reemplazada": "reemplazo",
+    "reemplazados": "reemplazo",
+    "reemplazadas": "reemplazo",
+    "reemplazarla": "reemplazo",
+    "reemplazarlo": "reemplazo",
+    "reemplazarlas": "reemplazo",
+    "reemplazarlos": "reemplazo",
+    
     # --------------------------------------------------------
     # PÉRDIDA
     # --------------------------------------------------------
