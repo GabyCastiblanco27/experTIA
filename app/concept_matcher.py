@@ -9,6 +9,7 @@ relevantes aunque cambie el orden de las palabras.
 """
 
 from difflib import SequenceMatcher
+import token
 
 from app.normalizer import normalize, tokenize
 
@@ -24,6 +25,20 @@ TOKENS_GENERICOS = {
     "quiero",
     "necesito",
 }
+
+
+EXPRESIONES_DANO = {
+    "ya no sirve": "dano",
+    "no sirve": "dano",
+    "ya no funcionan": "dano",
+    "no funciona": "dano",
+    "ya no funcionan bien": "dano",
+    "no funcionan bien": "dano",
+    "esta en mal estado": "dano",
+    "esta deteriorado": "dano",
+    "esta deteriorada": "dano",
+}
+
 
 # ============================================================
 # EQUIVALENCIAS DE ACCIONES
@@ -47,8 +62,97 @@ EQUIVALENCIAS_ACCION = {
         "agrego",
         "agrega",
         "alta",
+    },
+
+    "cambio": {
+        "cambiar",
+        "cambio",
+        "cambie",
+        "cambias",
+        "cambia",
+        "cambian",
+        "cambiamos",
+        "cambiado",
+        "cambiada",
+        "cambiados",
+        "cambiadas",
+        "cambiarlas",
+        "cambiarlos",
+
+        "reemplazar",
+        "reemplazo",
+        "reemplazos",
+        "reemplazado",
+        "reemplazada",
+        "reemplazados",
+        "reemplazadas",
+        "reemplazarla",
+        "reemplazarlo",
+        "reemplazarlas",
+        "reemplazarlos",
+
+        "reponer",
+        "repongo",
+        "reposicion",
+        "reposiciones",
+    },
+
+    "dano": {
+        "dañado",
+        "dañada",
+        "dañados",
+        "dañadas",
+        "dañe",
+        "dañar",
+        "daña",
+        "danado",
+        "danada",
+        "danados",
+        "danadas",
+
+        "roto",
+        "rota",
+        "rotos",
+        "rotas",
+        "rompio",
+        "romper",
+        "rompieron",
+
+        "deteriorado",
+        "deteriorada",
+        "deteriorados",
+        "deterioradas",
+        "deterioro",
+
+        "desgastado",
+        "desgastada",
+        "desgastados",
+        "desgastadas",
+        "desgaste",
+
+        "averiado",
+        "averiada",
+        "averiados",
+        "averiadas",
+        "averia",
+    },
+
+    "perdida": {
+        "perdi",
+        "perdido",
+        "perdida",
+        "perdidos",
+        "perdidas",
+        "extraviado",
+        "extraviada",
+        "extraviados",
+        "extraviadas",
+        "extravie",
     }
 }
+
+
+
 
 def obtener_grupo_equivalencia(token):
     """
@@ -175,8 +279,24 @@ def similitud_texto(texto1, texto2):
     if not tokens1 or not tokens2:
         return 0.0
 
+     # --------------------------------------------------------
+    # Detectar expresiones completas de daño
     # --------------------------------------------------------
-    # Convertir acciones equivalentes a un mismo concepto
+
+    conceptos_expresion1 = {
+        grupo
+        for expresion, grupo in EXPRESIONES_DANO.items()
+        if expresion in texto1
+    }
+
+    conceptos_expresion2 = {
+        grupo
+        for expresion, grupo in EXPRESIONES_DANO.items()
+        if expresion in texto2
+    }
+
+    # --------------------------------------------------------
+    # Convertir acciones equivalentes a conceptos comunes
     # --------------------------------------------------------
 
     conceptos1 = {
@@ -189,6 +309,12 @@ def similitud_texto(texto1, texto2):
         for token in tokens2
     }
 
+
+    # Agregar conceptos detectados mediante expresiones completas
+    conceptos1.update(conceptos_expresion1)
+    conceptos2.update(conceptos_expresion2)
+
+
     # --------------------------------------------------------
     # Coincidencia exacta
     # --------------------------------------------------------
@@ -197,79 +323,93 @@ def similitud_texto(texto1, texto2):
         return 1.0
 
     # --------------------------------------------------------
-    # Coincidencias
-    # --------------------------------------------------------
-
-    interseccion = conceptos1 & conceptos2
-
-    if not interseccion:
-        return 0.0
-
-    # --------------------------------------------------------
     # Eliminar términos genéricos
     # --------------------------------------------------------
 
     relevantes1 = conceptos1 - TOKENS_GENERICOS
     relevantes2 = conceptos2 - TOKENS_GENERICOS
 
-    coincidencias_relevantes = (
-        relevantes1
-        &
-        relevantes2
-    )
+    if not relevantes1 or not relevantes2:
+        return 0.0
 
-    if not coincidencias_relevantes:
+    coincidencias = relevantes1 & relevantes2
 
-        if interseccion.issubset(TOKENS_GENERICOS):
-            return 0.10
+    # --------------------------------------------------------
+    # No hay coincidencia relevante
+    # --------------------------------------------------------
 
+    if not coincidencias:
         return 0.0
 
     # --------------------------------------------------------
-    # Todos los conceptos relevantes de la pregunta
-    # están presentes en la referencia
+    # Coincidencia de un concepto principal
+    #
+    # Si la pregunta contiene un concepto que también aparece
+    # en la referencia, no debemos penalizar excesivamente
+    # porque la pregunta tenga palabras adicionales.
     #
     # Ejemplo:
     #
-    # registro proveedor
+    # PDF RUT
+    #      ↓
+    # descargar RUT
     #
-    # vs
-    #
-    # registro proveedor nuevo
+    # Ambos hablan del mismo objeto: RUT.
     # --------------------------------------------------------
 
-    if (
-        relevantes1
-        and
-        relevantes1.issubset(relevantes2)
-    ):
+    if len(coincidencias) == 1:
+
+        concepto = next(iter(coincidencias))
+
+        # Cantidad de conceptos relevantes
+        cantidad1 = len(relevantes1)
+        cantidad2 = len(relevantes2)
+
+        # Si ambos textos comparten un único concepto relevante,
+        # damos prioridad a esa coincidencia.
+        if cantidad1 == 1 or cantidad2 == 1:
+
+            score_secuencia = SequenceMatcher(
+                None,
+                texto1,
+                texto2
+            ).ratio()
+
+            return min(
+                0.75 + (score_secuencia * 0.10),
+                0.85
+            )
+
+    # --------------------------------------------------------
+    # Si todos los conceptos de la pregunta están contenidos
+    # en la referencia
+    # --------------------------------------------------------
+
+    if relevantes1.issubset(relevantes2):
         return 0.85
 
     # --------------------------------------------------------
-    # Coincidencia exacta de conceptos relevantes
+    # Si todos los conceptos de la referencia están contenidos
+    # en la pregunta
     # --------------------------------------------------------
 
-    if relevantes1 == relevantes2:
-        return 1.0
+    if relevantes2.issubset(relevantes1):
+        return 0.80
 
     # --------------------------------------------------------
-    # Cobertura
+    # Cobertura de conceptos
     # --------------------------------------------------------
 
     cobertura1 = (
-        len(coincidencias_relevantes)
+        len(coincidencias)
         /
         len(relevantes1)
-        if relevantes1
-        else 0.0
     )
 
     cobertura2 = (
-        len(coincidencias_relevantes)
+        len(coincidencias)
         /
         len(relevantes2)
-        if relevantes2
-        else 0.0
     )
 
     if cobertura1 + cobertura2 == 0:
@@ -309,7 +449,6 @@ def similitud_texto(texto1, texto2):
         score,
         1.0
     )
-
 # ============================================================
 # PREGUNTAS ALTERNATIVAS
 # ============================================================
@@ -361,9 +500,13 @@ def calcular_score_conceptual(
 
     Componentes:
 
-    - Preguntas alternativas: 65 %
-    - Título: 25 %
-    - Descripción: 10 %
+    - Preguntas alternativas: 85 %
+    - Título: 10 %
+    - Descripción: 5 %
+
+    Las preguntas alternativas tienen mayor peso porque
+    representan diferentes formas reales en que un usuario
+    puede formular una misma consulta.
     """
 
     score_alternativas = (
@@ -401,19 +544,19 @@ def calcular_score_conceptual(
 
         score_alternativas
         *
-        0.65
+        0.85
 
         +
 
         score_titulo
         *
-        0.25
+        0.10
 
         +
 
         score_descripcion
         *
-        0.10
+        0.05
     )
 
     return {

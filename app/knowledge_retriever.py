@@ -31,12 +31,9 @@ from app.repository import (
 # PESOS DEL MOTOR
 # ============================================================
 
-PESO_CONCEPTO = 0.60
-
-PESO_KEYWORDS = 0.30
-
-PESO_INTENCION = 0.10
-
+PESO_CONCEPTO = 0.70
+PESO_KEYWORDS = 0.25
+PESO_INTENCION = 0.05
 
 # ============================================================
 # UTILIDADES
