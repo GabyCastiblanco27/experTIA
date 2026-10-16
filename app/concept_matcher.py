@@ -5,11 +5,11 @@ Compara la pregunta del usuario contra
 el contenido conceptual de cada conocimiento.
 
 La similitud prioriza coincidencias de términos
-relevantes aunque cambie el orden de las palabras.
+relevantes y objetos específicos del dominio,
+aunque cambie el orden de las palabras.
 """
 
 from difflib import SequenceMatcher
-import token
 
 from app.normalizer import normalize, tokenize
 
@@ -27,6 +27,42 @@ TOKENS_GENERICOS = {
 }
 
 
+# ============================================================
+# TOKENS GENÉRICOS DE ACCIÓN / CONTEXTO
+# ============================================================
+
+# Estos términos aparecen en muchos conocimientos y por sí
+# solos no deberían determinar cuál conocimiento corresponde.
+
+TOKENS_CONTEXTO_GENERICO = {
+    "reportar",
+    "reporte",
+    "reporto",
+    "solicitar",
+    "solicitud",
+    "solicito",
+    "consultar",
+    "consulta",
+    "consulto",
+    "ver",
+    "revisar",
+    "buscar",
+    "verificar",
+    "novedad",
+    "novedades",
+    "gestion",
+    "gestionar",
+    "proceso",
+    "comprar",
+    "compra",
+    "compras",
+}
+
+
+# ============================================================
+# EXPRESIONES DE DAÑO
+# ============================================================
+
 EXPRESIONES_DANO = {
     "ya no sirve": "dano",
     "no sirve": "dano",
@@ -41,10 +77,76 @@ EXPRESIONES_DANO = {
 
 
 # ============================================================
+# EQUIVALENCIAS DE CONCEPTOS DEL DOMINIO
+# ============================================================
+
+EQUIVALENCIAS_CONCEPTO = {
+    "orden_pago": {
+        "op",
+        "orden_pago",
+    },
+
+    "material": {
+        "material",
+        "materiales",
+        "insumo",
+        "insumos",
+        "elemento",
+        "elementos",
+        "suministro",
+        "suministros",
+        "recurso",
+        "recursos",
+    },
+}
+
+# ============================================================
+# REQUISITOS DE CONTEXTO POR CONOCIMIENTO
+# ============================================================
+
+
+REQUISITOS_CONTEXTO = {
+    29: {
+    "nombre": "Materiales Productivos",
+    "grupos": [
+        {
+            "material_productivo",
+            "productivo",
+            "materia_prima",
+            "envase",
+            "empaque",
+            "ax",
+            "axapta",
+            "detalle_articulo",
+            "codigo_material",
+            "proveedor_material",
+            "proveedor_articulo",
+        }
+    ]
+},
+
+    42: {
+        "nombre": "Compra de Material para Proyectos de Desarrollo",
+        "grupos": [
+            {
+                "proyecto",
+                "desarrollo",
+                "axapta",
+                "material_proyecto",
+                "proyecto_desarrollo",
+                "compra_desarrollo",
+            }
+        ]
+    }
+}
+
+
+# ============================================================
 # EQUIVALENCIAS DE ACCIONES
 # ============================================================
 
 EQUIVALENCIAS_ACCION = {
+
     "creacion": {
         "crear",
         "creo",
@@ -148,24 +250,233 @@ EQUIVALENCIAS_ACCION = {
         "extraviados",
         "extraviadas",
         "extravie",
-    }
+    },
+
+    "consulta": {
+        "consultar",
+        "consulta",
+        "consulto",
+        "consultas",
+        "ver",
+        "veo",
+        "ves",
+        "revisar",
+        "reviso",
+        "revisa",
+        "buscar",
+        "busco",
+        "visualizar",
+        "visualizo",
+        "verificar",
+        "verifico",
+    },
 }
 
 
-
+# ============================================================
+# GRUPOS DE EQUIVALENCIA
+# ============================================================
 
 def obtener_grupo_equivalencia(token):
     """
     Devuelve el concepto común al que pertenece un token.
-    Si no existe equivalencia, devuelve el mismo token.
+
+    Primero revisa equivalencias de acciones y luego
+    equivalencias de conceptos del dominio.
+
+    Ejemplos:
+        solicitar -> solicitar
+        insumos -> material
+        materiales -> material
+        elementos -> material
+        suministros -> material
     """
+
+    # --------------------------------------------
+    # Equivalencias de acciones
+    # --------------------------------------------
 
     for grupo, variantes in EQUIVALENCIAS_ACCION.items():
 
         if token == grupo or token in variantes:
             return grupo
 
+    # --------------------------------------------
+    # Equivalencias de conceptos del dominio
+    # --------------------------------------------
+
+    for grupo, variantes in EQUIVALENCIAS_CONCEPTO.items():
+
+        if token == grupo or token in variantes:
+            return grupo
+
+    # --------------------------------------------
+    # Si no existe equivalencia
+    # --------------------------------------------
+
     return token
+
+# ============================================================
+# NORMALIZACIÓN DE CONCEPTOS DE DOMINIO
+# ============================================================
+
+def normalizar_conceptos_dominio(texto):
+    """
+    Convierte abreviaturas y expresiones específicas del dominio
+    en conceptos comunes.
+
+    Ejemplo:
+        OP -> orden_pago
+        orden de pago -> orden_pago
+    """
+
+    tokens = set(tokenize(texto))
+
+    conceptos = {
+        obtener_grupo_equivalencia(token)
+        for token in tokens
+    }
+
+    # OP es equivalente a Orden de Pago
+    if "op" in tokens:
+
+        conceptos.discard("op")
+        conceptos.add("orden_pago")
+
+    # Orden + pago representan Orden de Pago
+    if "orden" in tokens and "pago" in tokens:
+
+        conceptos.discard("orden")
+        conceptos.discard("pago")
+        conceptos.add("orden_pago")
+
+    return conceptos
+
+
+# ============================================================
+# OBTENER CONCEPTOS RELEVANTES
+# ============================================================
+
+def obtener_conceptos_relevantes(texto):
+    """
+    Obtiene los conceptos realmente útiles para comparar
+    dos textos.
+
+    Se eliminan:
+
+    - términos genéricos de conversación
+    - términos genéricos de acción/contexto
+
+    De esta forma:
+
+        "¿Cómo reporto una novedad con mis botas?"
+
+    conserva principalmente:
+
+        botas
+    """
+
+    conceptos = normalizar_conceptos_dominio(texto)
+
+    # Agregar expresiones de daño
+    conceptos_expresion = {
+        grupo
+        for expresion, grupo in EXPRESIONES_DANO.items()
+        if expresion in normalize(texto)
+    }
+
+    conceptos.update(conceptos_expresion)
+
+    relevantes = (
+        conceptos
+        - TOKENS_GENERICOS
+        - TOKENS_CONTEXTO_GENERICO
+    )
+
+    return relevantes
+
+# Términos que necesitan un objeto específico
+# para identificar correctamente un conocimiento.
+
+CONCEPTOS_AMPLIOS = {
+    "formato",
+    "documento",
+    "proveedor",
+    "certificado",
+    "certificacion",
+}
+
+
+# ============================================================
+# VALIDACIÓN DE CONTEXTO ESPECÍFICO
+# ============================================================
+
+def cumple_requisito_contexto(pregunta, conocimiento_id):
+    """
+    Determina si la pregunta contiene suficiente contexto
+    para que un conocimiento específico pueda competir.
+
+    Se utiliza únicamente para conocimientos que requieren
+    contexto adicional para evitar falsos positivos.
+    """
+
+    requisito = REQUISITOS_CONTEXTO.get(conocimiento_id)
+
+    if not requisito:
+        return True
+
+    texto = normalize(pregunta)
+
+    tokens = set(tokenize(texto))
+
+    # --------------------------------------------------------
+    # Contextos compuestos
+    # --------------------------------------------------------
+
+    contextos_compuestos = {
+        "material_productivo": {
+            "material",
+            "productivo"
+        },
+        "materia_prima": {
+            "materia",
+            "prima"
+        },
+        "detalle_articulo": {
+            "detalle",
+            "articulo"
+        },
+        "codigo_material": {
+            "codigo",
+            "material"
+        },
+        "proveedor_material": {
+        "proveedor",
+        "material"
+        },
+        "proveedor_articulo": {
+            "proveedor",
+            "articulo"
+        }
+    }
+
+    # --------------------------------------------------------
+    # Validar grupos
+    # --------------------------------------------------------
+
+    for grupo in requisito["grupos"]:
+
+        for concepto in grupo:
+
+            if concepto in contextos_compuestos:
+
+                if contextos_compuestos[concepto].issubset(tokens):
+                    return True
+
+            elif concepto in tokens:
+                return True
+
+    return False
 
 
 # ============================================================
@@ -185,16 +496,8 @@ def similitud_tokens(texto1, texto2):
     if not interseccion:
         return 0.0
 
-    # --------------------------------------------------------
-    # Coincidencia exacta
-    # --------------------------------------------------------
-
     if tokens1 == tokens2:
         return 1.0
-
-    # --------------------------------------------------------
-    # Eliminar tokens genéricos de la comparación
-    # --------------------------------------------------------
 
     relevantes1 = tokens1 - TOKENS_GENERICOS
     relevantes2 = tokens2 - TOKENS_GENERICOS
@@ -203,10 +506,6 @@ def similitud_tokens(texto1, texto2):
         relevantes1 & relevantes2
     )
 
-    # Si después de eliminar términos genéricos
-    # no queda ninguna coincidencia relevante,
-    # no debemos considerar que las preguntas son iguales.
-
     if not interseccion_relevante:
 
         if interseccion.issubset(TOKENS_GENERICOS):
@@ -214,16 +513,8 @@ def similitud_tokens(texto1, texto2):
 
         return 0.0
 
-    # --------------------------------------------------------
-    # Coincidencia exacta de conceptos relevantes
-    # --------------------------------------------------------
-
     if relevantes1 == relevantes2:
         return 1.0
-
-    # --------------------------------------------------------
-    # Cobertura de términos relevantes
-    # --------------------------------------------------------
 
     cobertura1 = (
         len(interseccion_relevante)
@@ -240,10 +531,6 @@ def similitud_tokens(texto1, texto2):
         if relevantes2
         else 0.0
     )
-
-    # --------------------------------------------------------
-    # Promedio armónico
-    # --------------------------------------------------------
 
     if cobertura1 + cobertura2 == 0:
         return 0.0
@@ -273,47 +560,11 @@ def similitud_texto(texto1, texto2):
     if not texto1 or not texto2:
         return 0.0
 
-    tokens1 = set(tokenize(texto1))
-    tokens2 = set(tokenize(texto2))
+    conceptos1 = obtener_conceptos_relevantes(texto1)
+    conceptos2 = obtener_conceptos_relevantes(texto2)
 
-    if not tokens1 or not tokens2:
+    if not conceptos1 or not conceptos2:
         return 0.0
-
-     # --------------------------------------------------------
-    # Detectar expresiones completas de daño
-    # --------------------------------------------------------
-
-    conceptos_expresion1 = {
-        grupo
-        for expresion, grupo in EXPRESIONES_DANO.items()
-        if expresion in texto1
-    }
-
-    conceptos_expresion2 = {
-        grupo
-        for expresion, grupo in EXPRESIONES_DANO.items()
-        if expresion in texto2
-    }
-
-    # --------------------------------------------------------
-    # Convertir acciones equivalentes a conceptos comunes
-    # --------------------------------------------------------
-
-    conceptos1 = {
-        obtener_grupo_equivalencia(token)
-        for token in tokens1
-    }
-
-    conceptos2 = {
-        obtener_grupo_equivalencia(token)
-        for token in tokens2
-    }
-
-
-    # Agregar conceptos detectados mediante expresiones completas
-    conceptos1.update(conceptos_expresion1)
-    conceptos2.update(conceptos_expresion2)
-
 
     # --------------------------------------------------------
     # Coincidencia exacta
@@ -322,52 +573,44 @@ def similitud_texto(texto1, texto2):
     if conceptos1 == conceptos2:
         return 1.0
 
-    # --------------------------------------------------------
-    # Eliminar términos genéricos
-    # --------------------------------------------------------
-
-    relevantes1 = conceptos1 - TOKENS_GENERICOS
-    relevantes2 = conceptos2 - TOKENS_GENERICOS
-
-    if not relevantes1 or not relevantes2:
-        return 0.0
-
-    coincidencias = relevantes1 & relevantes2
+    coincidencias = conceptos1 & conceptos2
 
     # --------------------------------------------------------
-    # No hay coincidencia relevante
+    # No existe coincidencia de objeto/concepto
     # --------------------------------------------------------
 
     if not coincidencias:
         return 0.0
 
     # --------------------------------------------------------
-    # Coincidencia de un concepto principal
-    #
-    # Si la pregunta contiene un concepto que también aparece
-    # en la referencia, no debemos penalizar excesivamente
-    # porque la pregunta tenga palabras adicionales.
-    #
-    # Ejemplo:
-    #
-    # PDF RUT
-    #      ↓
-    # descargar RUT
-    #
-    # Ambos hablan del mismo objeto: RUT.
+    # Un único concepto compartido
     # --------------------------------------------------------
 
     if len(coincidencias) == 1:
 
-        concepto = next(iter(coincidencias))
+        cantidad1 = len(conceptos1)
+        cantidad2 = len(conceptos2)
 
-        # Cantidad de conceptos relevantes
-        cantidad1 = len(relevantes1)
-        cantidad2 = len(relevantes2)
-
-        # Si ambos textos comparten un único concepto relevante,
-        # damos prioridad a esa coincidencia.
         if cantidad1 == 1 or cantidad2 == 1:
+
+            concepto = next(iter(coincidencias))
+
+            # Una coincidencia basada únicamente en un
+            # concepto amplio no identifica un procedimiento
+            # específico.
+            #
+            # Ejemplo:
+            # "formatos de solicitud"
+            # "formatos de confidencialidad"
+            #
+            # Ambos comparten "formato", pero corresponden
+            # a procedimientos diferentes.
+
+            if concepto in CONCEPTOS_AMPLIOS:
+                return 0.25
+
+            # Para conceptos específicos, conservamos
+            # la similitud textual como refuerzo.
 
             score_secuencia = SequenceMatcher(
                 None,
@@ -376,24 +619,24 @@ def similitud_texto(texto1, texto2):
             ).ratio()
 
             return min(
-                0.75 + (score_secuencia * 0.10),
-                0.85
+                0.65 + (score_secuencia * 0.15),
+                0.80
             )
 
     # --------------------------------------------------------
-    # Si todos los conceptos de la pregunta están contenidos
+    # Todos los conceptos de la pregunta están contenidos
     # en la referencia
     # --------------------------------------------------------
 
-    if relevantes1.issubset(relevantes2):
+    if conceptos1.issubset(conceptos2):
         return 0.85
 
     # --------------------------------------------------------
-    # Si todos los conceptos de la referencia están contenidos
+    # Todos los conceptos de la referencia están contenidos
     # en la pregunta
     # --------------------------------------------------------
 
-    if relevantes2.issubset(relevantes1):
+    if conceptos2.issubset(conceptos1):
         return 0.80
 
     # --------------------------------------------------------
@@ -403,13 +646,13 @@ def similitud_texto(texto1, texto2):
     cobertura1 = (
         len(coincidencias)
         /
-        len(relevantes1)
+        len(conceptos1)
     )
 
     cobertura2 = (
         len(coincidencias)
         /
-        len(relevantes2)
+        len(conceptos2)
     )
 
     if cobertura1 + cobertura2 == 0:
@@ -445,10 +688,9 @@ def similitud_texto(texto1, texto2):
         score_secuencia * 0.15
     )
 
-    return min(
-        score,
-        1.0
-    )
+    return min(score, 1.0)
+
+
 # ============================================================
 # PREGUNTAS ALTERNATIVAS
 # ============================================================
@@ -503,11 +745,20 @@ def calcular_score_conceptual(
     - Preguntas alternativas: 85 %
     - Título: 10 %
     - Descripción: 5 %
-
-    Las preguntas alternativas tienen mayor peso porque
-    representan diferentes formas reales en que un usuario
-    puede formular una misma consulta.
     """
+
+    conocimiento_id = conocimiento.get("id")
+
+    if not cumple_requisito_contexto(
+        pregunta,
+        conocimiento_id
+    ):
+        return {
+            "score": 0.0,
+            "preguntas_alternativas": 0.0,
+            "titulo": 0.0,
+            "descripcion": 0.0
+        }
 
     score_alternativas = (
         mejor_pregunta_alternativa(
@@ -536,36 +787,16 @@ def calcular_score_conceptual(
         )
     )
 
-    # --------------------------------------------------------
-    # Ranking conceptual
-    # --------------------------------------------------------
-
     score_final = (
-
-        score_alternativas
-        *
-        0.85
-
+        score_alternativas * 0.85
         +
-
-        score_titulo
-        *
-        0.10
-
+        score_titulo * 0.10
         +
-
-        score_descripcion
-        *
-        0.05
+        score_descripcion * 0.05
     )
 
     return {
-
-        "score":
-            min(
-                score_final,
-                1.0
-            ),
+        "score": min(score_final, 1.0),
 
         "preguntas_alternativas":
             score_alternativas,

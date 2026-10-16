@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 
 from app.database import obtener_conexion
 
-from app.knowledge_retriever import (
-    buscar_conocimiento
+from app.busqueda_asistida import (
+    buscar_conocimiento_asistido
 )
 
 from app.repository import (
@@ -87,7 +87,7 @@ def buscar(
         # Ejecutar motor de búsqueda
         # ----------------------------------------------------
 
-        resultado = buscar_conocimiento(
+        resultado = buscar_conocimiento_asistido(
             consulta.pregunta
         )
 

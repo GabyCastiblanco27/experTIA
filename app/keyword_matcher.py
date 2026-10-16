@@ -217,34 +217,48 @@ def calcular_puntajes_keywords(pregunta):
     """
     Calcula el puntaje de keywords por conocimiento.
 
-    Las coincidencias específicas tienen mayor influencia
-    que las coincidencias genéricas.
+    Evita contabilizar varias veces keywords que
+    representan el mismo concepto normalizado.
+
+    Para cada conocimiento se conserva el mayor peso
+    entre keywords equivalentes.
     """
 
-    keywords = detectar_keywords(
-        pregunta
-    )
+    keywords = detectar_keywords(pregunta)
 
-    puntajes = {}
+    grupos = {}
 
     for keyword in keywords:
 
-        conocimiento_id = (
-            keyword["conocimiento_id"]
+        conocimiento_id = keyword["conocimiento_id"]
+
+        concepto = " ".join(
+            sorted(
+                set(
+                    normalize(keyword["palabra"]).split()
+                )
+            )
         )
 
-        peso = float(
-            keyword["peso"]
+        peso = float(keyword["peso"])
+
+        if conocimiento_id not in grupos:
+            grupos[conocimiento_id] = {}
+
+        peso_anterior = grupos[conocimiento_id].get(
+            concepto, 0.0
         )
 
-        if conocimiento_id not in puntajes:
+        grupos[conocimiento_id][concepto] = max(
+            peso_anterior,
+            peso
+        )
 
-            puntajes[
-                conocimiento_id
-            ] = 0.0
+    puntajes = {}
 
-        puntajes[
-            conocimiento_id
-        ] += peso
+    for conocimiento_id, conceptos in grupos.items():
+        puntajes[conocimiento_id] = sum(
+            conceptos.values()
+        )
 
     return puntajes

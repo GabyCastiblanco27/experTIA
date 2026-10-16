@@ -14,6 +14,122 @@ from app.normalizer import normalize, tokenize
 
 from app.repository import get_intention_variants
 
+# ============================================================
+# EQUIVALENCIAS DE ACCIONES POR INTENCIÓN
+# ============================================================
+
+EQUIVALENCIAS_INTENCION = {
+
+    "CONSULTAR": {
+        "consultar",
+        "consulta",
+        "consulto",
+        "consultas",
+        "ver",
+        "veo",
+        "ves",
+        "revisar",
+        "reviso",
+        "revisa",
+        "buscar",
+        "busco",
+        "visualizar",
+        "visualizo",
+        "verificar",
+        "verifico",
+
+        # Expresiones para consultar estado o ubicación
+        "donde",
+        "esta",
+        "encuentra",
+        "estado",
+        "seguimiento",
+        "tracking",
+    },
+
+    "SOLICITAR": {
+        "solicitar",
+        "solicito",
+        "solicitud",
+
+        "pedir",
+        "pido",
+
+        "crear",
+        "creo",
+        "creacion",
+
+        "registrar",
+        "registro",
+        "registra",
+        "registrado",
+        "registrada",
+
+        "agregar",
+        "agrega",
+
+        "ingresar",
+        "ingreso",
+
+        "reponer",
+        "repongo",
+        "reposicion",
+        "reposiciones",
+    },
+    
+
+    "REPORTAR": {
+        "reportar",
+        "reporto",
+        "reporte",
+        "dano",
+        "danar",
+        "danado",
+        "romper",
+        "rompio",
+        "rota",
+        "roto",
+        "deteriorado",
+        "deteriorada",
+        "deterioro",
+        "desgaste",
+        "extraviado",
+        "extraviada",
+        "perdido",
+        "perdida",
+    },
+
+    "MODIFICAR": {
+        "modificar",
+        "modifico",
+        "modificacion",
+        "actualizar",
+        "actualizo",
+        "actualizacion",
+        "cambiar",
+        "cambio",
+        "reemplazar",
+        "reemplazo",
+    },
+}
+
+
+# ============================================================
+# EXPRESIONES DE REPORTE
+# ============================================================
+
+EXPRESIONES_REPORTAR = {
+    "ya no sirve",
+    "no sirve",
+    "ya no funciona",
+    "no funciona",
+    "ya no funcionan",
+    "no funcionan",
+    "esta en mal estado",
+    "esta deteriorado",
+    "esta deteriorada",
+}
+
 
 # ============================================================
 # SIMILITUD
@@ -84,6 +200,62 @@ def calcular_similitud(
 
 
 # ============================================================
+# DETECTAR ACCIONES
+# ============================================================
+
+def detectar_acciones_intencion(
+    pregunta
+):
+    """
+    Detecta acciones o expresiones que permiten
+    identificar directamente una intención.
+    """
+
+    texto = normalize(
+        pregunta
+    )
+
+    if not texto:
+        return set()
+
+    tokens = set(
+        tokenize(texto)
+    )
+
+    intenciones_detectadas = set()
+
+    # --------------------------------------------------------
+    # Acciones directas
+    # --------------------------------------------------------
+
+    for intencion, variantes in EQUIVALENCIAS_INTENCION.items():
+
+        if tokens & variantes:
+
+            intenciones_detectadas.add(
+                intencion
+            )
+
+    # --------------------------------------------------------
+    # Expresiones de reporte
+    # --------------------------------------------------------
+
+    for expresion in EXPRESIONES_REPORTAR:
+
+        expresion_normalizada = normalize(
+            expresion
+        )
+
+        if expresion_normalizada in texto:
+
+            intenciones_detectadas.add(
+                "REPORTAR"
+            )
+
+    return intenciones_detectadas
+
+
+# ============================================================
 # DETECCIÓN DE INTENCIÓN
 # ============================================================
 
@@ -115,6 +287,11 @@ def detectar_intencion(
         return None
 
     mejor_resultado = None
+
+
+    acciones_detectadas = detectar_acciones_intencion(
+        pregunta
+    )
 
     for variante in variantes:
 
@@ -155,6 +332,20 @@ def detectar_intencion(
             puntaje = calcular_similitud(
                 pregunta_normalizada,
                 frase
+            )
+
+
+        # ----------------------------------------------------
+        # Equivalencia de acción
+        # ----------------------------------------------------
+
+        intencion = variante["intencion"]
+
+        if intencion in acciones_detectadas:
+
+            puntaje = max(
+                puntaje,
+                0.85
             )
 
         # ----------------------------------------------------
@@ -203,5 +394,19 @@ def detectar_intencion(
         ):
 
             mejor_resultado = resultado
+
+    # ========================================================
+    # UMBRAL DE CONFIANZA
+    # ========================================================
+
+    UMBRAL_INTENCION = 0.50
+
+    if (
+        mejor_resultado is None
+        or mejor_resultado["score"]
+        < UMBRAL_INTENCION
+    ):
+
+        return None
 
     return mejor_resultado

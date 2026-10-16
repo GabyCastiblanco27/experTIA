@@ -104,8 +104,8 @@ REPLACEMENTS = {
     "pido": "solicitud",
     "pide": "solicitud",
     "piden": "solicitud",   
-    "pedido": "solicitud",
-    "pedida": "solicitud",
+    "pedido": "pedido",
+    "pedida": "pedido",
 
     # --------------------------------------------------------
     # TRÁMITES
@@ -128,6 +128,12 @@ REPLACEMENTS = {
     # --------------------------------------------------------
     # CARGAS / SUBIR
     # --------------------------------------------------------
+
+    "cargar": "carga",
+    "cargo": "carga",
+    "carga": "carga",
+    "cargas": "carga",
+
 
     "subir": "subir",
     "subo": "subir",
@@ -254,7 +260,7 @@ REPLACEMENTS = {
     "reemplazarlo": "reemplazo",
     "reemplazarlas": "reemplazo",
     "reemplazarlos": "reemplazo",
-    
+
     # --------------------------------------------------------
     # PÉRDIDA
     # --------------------------------------------------------
@@ -373,6 +379,37 @@ REPLACEMENTS = {
     "despacho": "envio",
     "despacha": "envio",
     "despachado": "envio",
+
+    # --------------------------------------------------------
+    # DOCUMENTOS
+    # --------------------------------------------------------
+
+    "documento": "documento",
+    "documentos": "documento",
+
+    # --------------------------------------------------------
+    # FORMATOS Y FORMULARIOS
+    # --------------------------------------------------------
+
+    "formato": "formato",
+    "formatos": "formato",
+    "formulario": "formato",
+    "formularios": "formato",
+
+    # --------------------------------------------------------
+    # MATERIALES PRODUCTIVOS
+    # --------------------------------------------------------
+
+    "material": "material",
+    "materiales": "material",
+    "productivo": "productivo",
+    "productivos": "productivo",
+
+    "envase": "envase",
+    "envases": "envase",
+
+    "empaque": "empaque",
+    "empaques": "empaque",
 }
 
 

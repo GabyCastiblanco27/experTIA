@@ -1,4 +1,23 @@
+# Variables de entorno y credenciales
 .env
+.env.*
+!.env.example
+
+# Entornos virtuales
 venv/
+.venv/
+
+# Archivos temporales de Python
 __pycache__/
 *.pyc
+
+# Respaldos de ExperTIA
+*.respaldo*.py
+*.backup*.py
+respaldo_prevalidacion/
+
+# Archivos de evaluación local
+evaluacion_cobertura_*.csv
+
+# Archivos del editor
+.vscode/
