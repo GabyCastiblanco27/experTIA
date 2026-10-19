@@ -138,7 +138,7 @@ def _consulta_demasiado_generica(pregunta: str) -> bool:
         "debo", "deseo", "hacerlo", "pedirlo", "tramitarlo",
         "reportarlo", "consultarlo", "descargarlo", "solicitarlo",
     }
-    return not any(t not in genericos for t in tokens)
+    return not any(t not in genericos and not t.startswith('ayud') for t in tokens)
 
 def _acuerdo_semantico(h: dict[str, Any]) -> bool:
     """Confirmacion de eleccion de ID, NO verificacion de cobertura total.
