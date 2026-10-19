@@ -40,6 +40,50 @@ def _aclaracion_previa(pregunta: str) -> str | None:
         c for c in texto if not unicodedata.combining(c)
     )
 
+
+    # compatibilidad_validada_vacaciones
+    # Dos acciones confirmadas dentro del mismo procedimiento.
+    partes_vacaciones = re.split(
+        r"\b(?:y|ademas|tambien|asimismo)\b",
+        texto
+    )
+
+    if len(partes_vacaciones) == 2:
+
+        def consulta_saldo(parte):
+            return (
+                bool(re.search(
+                    r"\b(?:consulto|consultar|consulta|reviso|revisar|ver|veo)\b",
+                    parte
+                ))
+                and "saldo" in parte.split()
+                and "vacaciones" in parte.split()
+            )
+
+        def solicita_descanso(parte):
+            return (
+                bool(re.search(
+                    r"\b(?:solicito|solicitar|pido|pedir)\b",
+                    parte
+                ))
+                and bool(re.search(r"\b(?:dias|dia)\b", parte))
+                and bool(re.search(
+                    r"\b(?:descanso|vacaciones)\b",
+                    parte
+                ))
+            )
+
+        misma_gestion = (
+            consulta_saldo(partes_vacaciones[0])
+            and solicita_descanso(partes_vacaciones[1])
+        ) or (
+            consulta_saldo(partes_vacaciones[1])
+            and solicita_descanso(partes_vacaciones[0])
+        )
+
+        if misma_gestion:
+            return None
+
     conectores = r"\b(?:y|ademas|tambien|asimismo)\b"
     partes = re.split(conectores, texto)
 

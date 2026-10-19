@@ -277,6 +277,32 @@ EQUIVALENCIAS_ACCION = {
 # GRUPOS DE EQUIVALENCIA
 # ============================================================
 
+# Equivalencias gramaticales verificadas en regresion
+EQUIVALENCIAS_ACCION["adjuntar"] = {
+    "adjuntar", "adjunto", "adjunta",
+    "adjunte", "adjuntando"
+}
+
+EQUIVALENCIAS_CONCEPTO["evidencia"] = {
+    "evidencia", "evidencias"
+}
+
+EQUIVALENCIAS_CONCEPTO["indicador"] = {
+    "indicador", "indicadores"
+}
+
+
+# Equivalencias para acciones de actualizacion
+EQUIVALENCIAS_ACCION["actualizacion"] = {
+    "actualizar", "actualiza", "actualizo",
+    "actualizacion", "actualizado", "actualizada"
+}
+
+EQUIVALENCIAS_CONCEPTO["correo"] = {
+    "correo", "correos"
+}
+
+
 def obtener_grupo_equivalencia(token):
     """
     Devuelve el concepto común al que pertenece un token.
@@ -794,6 +820,16 @@ def calcular_score_conceptual(
         +
         score_descripcion * 0.05
     )
+
+    # Refuerzo de accion explicita
+    if "actualizacion" in obtener_conceptos_relevantes(pregunta):
+        tiene_accion = any(
+            "actualizacion" in obtener_conceptos_relevantes(alt)
+            for alt in preguntas_alternativas
+        )
+
+        if tiene_accion:
+            score_final = min(1.0, score_final + 0.05)
 
     return {
         "score": min(score_final, 1.0),
