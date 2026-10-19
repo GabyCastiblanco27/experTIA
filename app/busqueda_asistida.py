@@ -211,9 +211,6 @@ def _resultado_hibrido(h: dict[str, Any]) -> dict[str, Any]:
     }
 
 def _buscar_conocimiento_asistido_base(pregunta: str) -> dict[str, Any]:
-    if os.getenv("EXPERTIA_MODO_BUSQUEDA", "tradicional").strip().lower() != "rescate":
-        return buscar_conocimiento(pregunta)
-
     aclaracion = _aclaracion_previa(pregunta)
     if aclaracion:
         return _pedir_aclaracion(aclaracion, "pregunta_ambigua_o_multiple")
@@ -222,6 +219,9 @@ def _buscar_conocimiento_asistido_base(pregunta: str) -> dict[str, Any]:
             "¿Sobre qué trámite o procedimiento necesitas información?",
             "pregunta_sin_tema_identificable",
         )
+
+    if os.getenv("EXPERTIA_MODO_BUSQUEDA", "tradicional").strip().lower() != "rescate":
+        return buscar_conocimiento(pregunta)
 
     original = buscar_conocimiento(pregunta)
     if not _amerita_contraste(original):
