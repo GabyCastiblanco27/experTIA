@@ -210,3 +210,37 @@ def buscar(consulta: ConsultaRequest):
             status_code=500,
             detail="Error interno del motor de busqueda",
         )
+
+@app.on_event("startup")
+def diagnosticar_neon_vectorial():
+    if os.getenv("EXPERTIA_DIAGNOSTICO_VECTOR", "0") != "1":
+        return
+
+    import psycopg2
+
+    conexion = None
+    try:
+        conexion = psycopg2.connect(
+            os.environ["EXPERTIA_PGVECTOR_DEV_URL"],
+            connect_timeout=8
+        )
+        with conexion.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM public.expertia_indice_vectorial_dev"
+            )
+            cantidad = cursor.fetchone()[0]
+
+        logger.warning(
+            "DIAGNOSTICO_VECTOR: CONEXION_OK registros=%s",
+            cantidad
+        )
+
+    except Exception as error:
+        logger.warning(
+            "DIAGNOSTICO_VECTOR: ERROR tipo=%s",
+            type(error).__name__
+        )
+
+    finally:
+        if conexion:
+            conexion.close()
