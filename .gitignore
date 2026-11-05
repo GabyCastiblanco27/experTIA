@@ -20,4 +20,15 @@ respaldo_prevalidacion/
 evaluacion_cobertura_*.csv
 
 # Archivos del editor
-.vscode/
+.vscode/app/respaldos/
+*_respaldo_*.py
+*_backup_*.py
+expertia_casos_auditoria_179.json
+auditoria_*.csv
+validacion_integracion_*.csv
+cierre_expertia_*.csv
+instalar_selector_integrado_expertia.py
+activar_decision_hibrida_dev.py
+cierre_expertia_una_ejecucion.py
+
+/app/respaldos/

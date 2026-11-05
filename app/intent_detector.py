@@ -260,7 +260,8 @@ def detectar_acciones_intencion(
 # ============================================================
 
 def detectar_intencion(
-    pregunta
+    pregunta,
+    variantes=None
 ):
     """
     Detecta la intención más probable
@@ -281,7 +282,8 @@ def detectar_intencion(
         tokenize(pregunta)
     )
 
-    variantes = get_intention_variants()
+    if variantes is None:
+        variantes = get_intention_variants()
 
     if not variantes:
         return None

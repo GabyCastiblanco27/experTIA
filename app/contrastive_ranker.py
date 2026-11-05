@@ -175,7 +175,7 @@ class _Indice:
         conocidas = self.palabras_base[id_] | self.palabras_respuesta[id_]
         return sum(self.idf_palabras[t] for t in tokens & conocidas) / denom
 
-    def calificar(self, pregunta):
+    def calificar(self, pregunta, *, bonificar_solo_base=False):
         completos = self._similitudes(pregunta)
         secundarios = self._similitudes(_cabeza(pregunta))
         resultados = {}
@@ -199,11 +199,20 @@ class _Indice:
             # Refuerzo limitado de identificadores poco comunes presentes en la
             # consulta y documentados en el conocimiento (ej. AX09, Workday).
             q_tokens = set(tokenize(pregunta))
-            raros = sum(
-                1 for t in q_tokens
-                if len(t) > 2 and self.frecuencia_palabras.get(t, 99) <= 3
-                and t in (self.palabras_base[id_] | self.palabras_respuesta[id_])
+            fuente_bonificacion = self.palabras_base[id_]
+
+            if not bonificar_solo_base:
+                fuente_bonificacion = (
+                fuente_bonificacion | self.palabras_respuesta[id_]
             )
+
+            raros = sum(
+                 1 for t in q_tokens
+                if len(t) > 2
+                and self.frecuencia_palabras.get(t, 99) <= 3
+                and t in fuente_bonificacion
+            )
+
             resultados[id_] = (
                 (1-_PESO_COBERTURA)*score_char
                 + _PESO_COBERTURA*self._cobertura(pregunta,id_)
@@ -211,16 +220,35 @@ class _Indice:
             )
         return resultados
 
+def calificar_conocimientos(
+    pregunta,
+    conocimientos,
+    preguntas_alternativas,
+    *,
+    bonificar_solo_base=False,
+):
+    """Puntajes relativos usados para comparar candidatos.
 
-def calificar_conocimientos(pregunta, conocimientos, preguntas_alternativas):
-    """Puntajes entre 0 y 1 usados SOLO para comparar candidatos."""
+    Por defecto conserva exactamente el comportamiento anterior.
+    La opción bonificar_solo_base se reserva para el selector DEV.
+    """
     firma = _firma_datos(conocimientos, preguntas_alternativas)
+
     with _MUTEX:
         if _CACHE["firma"] != firma:
-            _CACHE["modelo"] = _Indice(conocimientos, preguntas_alternativas)
+            _CACHE["modelo"] = _Indice(
+                conocimientos,
+                preguntas_alternativas
+            )
             _CACHE["firma"] = firma
+
         indice = _CACHE["modelo"]
-    return indice.calificar(pregunta)
+
+    return indice.calificar(
+        pregunta,
+        bonificar_solo_base=bonificar_solo_base,
+    )
+
 
 def similitudes_mejores_alternativas(pregunta, conocimientos, preguntas_alternativas, ids):
     """Mejor coincidencia de pregunta alternativa por candidato, no probabilidad."""

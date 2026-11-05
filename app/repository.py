@@ -473,3 +473,204 @@ def obtener_recursos_por_conocimiento(
                 })
 
             return recursos
+
+
+
+# ============================================================
+# CATÁLOGO CENTRALIZADO PARA EL MOTOR UNIFICADO
+# ============================================================
+
+def cargar_catalogo_completo():
+    """
+    Carga en una sola consulta SQL:
+    - Conocimientos activos.
+    - Preguntas alternativas.
+    - Keywords y sus pesos.
+    - Recursos estructurados.
+    - Variantes de intención.
+
+    Devuelve los datos preparados para reutilización
+    por el ranking tradicional, el árbitro y el selector DEV.
+    """
+
+    sql = """
+        WITH catalogo AS (
+            SELECT
+                c.id,
+                c.titulo,
+                c.descripcion,
+                c.respuesta,
+                c.responsable,
+                c.estado,
+
+                c.area_id,
+                a.nombre AS area,
+
+                c.proceso_id,
+                p.nombre AS proceso,
+
+                COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'id', pa.id,
+                                'conocimiento_id', pa.conocimiento_id,
+                                'pregunta', pa.pregunta
+                            )
+                            ORDER BY pa.id
+                        )
+                        FROM preguntas_alternativas pa
+                        WHERE pa.conocimiento_id = c.id
+                    ),
+                    '[]'::jsonb
+                ) AS preguntas_alternativas,
+
+                COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'conocimiento_id', ck.conocimiento_id,
+                                'keyword_id', ck.keyword_id,
+                                'palabra', k.palabra,
+                                'peso', COALESCE(ck.peso, 1.00)::float
+                            )
+                            ORDER BY ck.keyword_id
+                        )
+                        FROM conocimiento_keywords ck
+                        INNER JOIN keywords k
+                            ON k.id = ck.keyword_id
+                        WHERE ck.conocimiento_id = c.id
+                          AND COALESCE(k.activo, TRUE) = TRUE
+                    ),
+                    '[]'::jsonb
+                ) AS keywords,
+
+                COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'id', r.id,
+                                'nombre', r.nombre,
+                                'tipo', r.tipo,
+                                'url', r.url,
+                                'descripcion', r.descripcion
+                            )
+                            ORDER BY r.id
+                        )
+                        FROM recursos r
+                        WHERE r.conocimiento_id = c.id
+                          AND COALESCE(r.activo, TRUE) = TRUE
+                    ),
+                    '[]'::jsonb
+                ) AS recursos
+
+            FROM conocimientos c
+
+            LEFT JOIN areas a
+                ON a.id = c.area_id
+
+            LEFT JOIN procesos p
+                ON p.id = c.proceso_id
+
+            WHERE UPPER(
+                COALESCE(c.estado, 'ACTIVO')
+            ) = 'ACTIVO'
+
+            AND (
+                a.id IS NULL
+                OR COALESCE(a.activo, TRUE) = TRUE
+            )
+
+            AND (
+                p.id IS NULL
+                OR COALESCE(p.activo, TRUE) = TRUE
+            )
+        ),
+
+        variantes AS (
+            SELECT COALESCE(
+                jsonb_agg(
+                    jsonb_build_object(
+                        'id', iv.id,
+                        'intencion_id', iv.intencion_id,
+                        'intencion', i.nombre,
+                        'frase', iv.frase,
+                        'peso', COALESCE(iv.peso, 1.00)::float
+                    )
+                    ORDER BY iv.id
+                ),
+                '[]'::jsonb
+            ) AS filas
+
+            FROM intencion_variantes iv
+
+            INNER JOIN intenciones i
+                ON i.id = iv.intencion_id
+
+            WHERE COALESCE(i.activo, TRUE) = TRUE
+        )
+
+        SELECT jsonb_build_object(
+            'conocimientos',
+            COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        to_jsonb(c)
+                        ORDER BY c.id
+                    )
+                    FROM catalogo c
+                ),
+                '[]'::jsonb
+            ),
+
+            'variantes_intencion',
+            (SELECT filas FROM variantes)
+        ) AS datos
+    """
+
+    with obtener_conexion() as conn:
+        with obtener_cursor(conn) as cursor:
+
+            cursor.execute(sql)
+
+            fila = cursor.fetchone()
+
+    if not fila:
+        return {
+            "conocimientos": [],
+            "candidatos": [],
+            "preguntas": [],
+            "keywords": [],
+            "variantes_intencion": [],
+        }
+
+    datos = fila["datos"] or {}
+
+    # Compatibilidad por si el controlador entrega JSON como texto.
+    if isinstance(datos, str):
+        import json
+        datos = json.loads(datos)
+
+    conocimientos = datos.get("conocimientos") or []
+    variantes_intencion = datos.get("variantes_intencion") or []
+
+    preguntas = []
+    keywords = []
+
+    for conocimiento in conocimientos:
+
+        preguntas.extend(
+            conocimiento.get("preguntas_alternativas") or []
+        )
+
+        keywords.extend(
+            conocimiento.get("keywords") or []
+        )
+
+    return {
+        "conocimientos": conocimientos,
+        "candidatos": conocimientos,
+        "preguntas": preguntas,
+        "keywords": keywords,
+        "variantes_intencion": variantes_intencion,
+    }

@@ -24,6 +24,46 @@ from app.knowledge_retriever import buscar_conocimiento
 LOG = logging.getLogger(__name__)
 
 
+def _solicitud_credenciales_ajenas(pregunta: str) -> bool:
+    """Reconoce solicitudes explicitas de contrasenas de terceros."""
+    texto = unicodedata.normalize("NFKD", pregunta.lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+
+    credencial = re.search(
+        r"\b(?:contrasen\w*|clave(?:s)?|password(?:s)?|credencial(?:es)?)\b",
+        texto,
+    )
+    tercero = re.search(
+        r"\b(?:companero\w*|colega\w*|colaborador\w*|emplead\w*|"
+        r"otra persona|otras personas|otro usuario|otra cuenta|alguien|tercero\w*)\b",
+        texto,
+    )
+    divulgacion = re.search(
+        r"\b(?:dime|decir|decirme|dame|darme|pasame|pasar|mostrar|"
+        r"revelar|compartir|conocer|obtener|averiguar|consultar|"
+        r"ver|saber|facilitar)\b|\bcual es\b",
+        texto,
+    )
+    # Diferenciar consultas sobre soporte/restablecimiento de pedidos de divulgacion.
+    soporte = re.search(
+        r"\b(?:procedimiento|proceso|reportar|reporto|denunciar|"
+        r"restablecer|resetear|cambiar|cambio|soporte)\b",
+        texto,
+    )
+    return bool(credencial and tercero and divulgacion and not soporte)
+
+
+def _proteger_credenciales_ajenas(pregunta: str) -> dict[str, Any] | None:
+    if _solicitud_credenciales_ajenas(pregunta):
+        return _pedir_aclaracion(
+            "No puedo proporcionar contraseñas ni credenciales de otra "
+            "persona. Para solicitar acceso o asistencia, utiliza los "
+            "canales autorizados de soporte de TI.",
+            "proteccion_credenciales_terceros",
+        )
+    return None
+
+
 def _numero(valor: Any) -> float | None:
     try:
         n = float(valor)
@@ -32,60 +72,24 @@ def _numero(valor: Any) -> float | None:
         return None
 
 
+
 def _aclaracion_previa(pregunta: str) -> str | None:
-    """Detecta solicitudes múltiples explícitas antes de buscar."""
+    """Detecta solicitudes independientes sin separar pasos relacionados."""
 
     texto = unicodedata.normalize("NFKD", pregunta.lower())
     texto = "".join(
         c for c in texto if not unicodedata.combining(c)
     )
 
-
-    # compatibilidad_validada_vacaciones
-    # Dos acciones confirmadas dentro del mismo procedimiento.
-    partes_vacaciones = re.split(
-        r"\b(?:y|ademas|tambien|asimismo)\b",
-        texto
-    )
-
-    if len(partes_vacaciones) == 2:
-
-        def consulta_saldo(parte):
-            return (
-                bool(re.search(
-                    r"\b(?:consulto|consultar|consulta|reviso|revisar|ver|veo)\b",
-                    parte
-                ))
-                and "saldo" in parte.split()
-                and "vacaciones" in parte.split()
-            )
-
-        def solicita_descanso(parte):
-            return (
-                bool(re.search(
-                    r"\b(?:solicito|solicitar|pido|pedir)\b",
-                    parte
-                ))
-                and bool(re.search(r"\b(?:dias|dia)\b", parte))
-                and bool(re.search(
-                    r"\b(?:descanso|vacaciones)\b",
-                    parte
-                ))
-            )
-
-        misma_gestion = (
-            consulta_saldo(partes_vacaciones[0])
-            and solicita_descanso(partes_vacaciones[1])
-        ) or (
-            consulta_saldo(partes_vacaciones[1])
-            and solicita_descanso(partes_vacaciones[0])
-        )
-
-        if misma_gestion:
-            return None
-
     conectores = r"\b(?:y|ademas|tambien|asimismo)\b"
-    partes = re.split(conectores, texto)
+    partes = [
+        p.strip()
+        for p in re.split(conectores, texto)
+        if p.strip()
+    ]
+
+    if len(partes) < 2:
+        return None
 
     acciones = (
         r"\b(?:reportar|notificar|informar|solicitar|pedir|"
@@ -97,20 +101,76 @@ def _aclaracion_previa(pregunta: str) -> str | None:
         r"creo|crearlo|reporto|reportarlo|solicito|solicitarlo)\b"
     )
 
-    if len(partes) >= 2:
-        partes_con_accion = sum(
-            bool(re.search(acciones, parte))
-            for parte in partes
-        )
+    partes_con_accion = [
+        p for p in partes if re.search(acciones, p)
+    ]
 
-        if partes_con_accion >= 2:
-            return (
-                "Identifiqué varias solicitudes en tu mensaje. "
-                "Para ayudarte correctamente, ¿cuál deseas "
-                "resolver primero?"
+    if len(partes_con_accion) < 2:
+        return None
+
+    if len(partes) == 2:
+
+        # Consultar saldo y solicitar dias de descanso:
+        # dos acciones de una misma gestion de vacaciones.
+        def consulta_saldo(parte):
+            return bool(
+                re.search(
+                    r"\b(?:consulto|consultar|consulta|reviso|"
+                    r"revisar|ver|veo)\b",
+                    parte
+                )
+                and re.search(r"\bsaldo\b", parte)
+                and re.search(r"\bvacaciones\b", parte)
             )
 
-    return None
+        def solicita_descanso(parte):
+            return bool(
+                re.search(
+                    r"\b(?:solicito|solicitar|pido|pedir)\b",
+                    parte
+                )
+                and re.search(r"\b(?:dias|dia)\b", parte)
+                and re.search(r"\b(?:descanso|vacaciones)\b", parte)
+            )
+
+        if (
+            consulta_saldo(partes[0])
+            and solicita_descanso(partes[1])
+        ) or (
+            consulta_saldo(partes[1])
+            and solicita_descanso(partes[0])
+        ):
+            return None
+
+        # Consultar un documento y obtener su archivo asociado.
+        documento = (
+            r"\b(?:factura|facturas|documento|documentos|"
+            r"comprobante|comprobantes)\b"
+        )
+        consulta = (
+            r"\b(?:consultar|consulto|consulta|buscar|"
+            r"revisar|reviso|ver)\b"
+        )
+        descarga = (
+            r"^\s*(?:obtener|descargar|generar|ver|visualizar|abrir)"
+            r"\s+(?:su|sus|el|la)"
+            r"\s+(?:pdf|archivo|documento|comprobante)\b"
+        )
+
+        if (
+            re.search(consulta, partes[0])
+            and re.search(documento, partes[0])
+            and re.search(descarga, partes[1])
+        ):
+            return None
+
+    return (
+        "Identifiqué varias solicitudes en tu mensaje. "
+        "Para ayudarte correctamente, ¿cuál deseas "
+        "resolver primero?"
+    )
+
+
 
 
 def _pedir_aclaracion(pregunta_aclaracion: str, razon: str) -> dict[str, Any]:
@@ -181,6 +241,8 @@ def _consulta_demasiado_generica(pregunta: str) -> bool:
         "pendiente", "saber", "puedes", "favor", "necesitaria",
         "debo", "deseo", "hacerlo", "pedirlo", "tramitarlo",
         "reportarlo", "consultarlo", "descargarlo", "solicitarlo",
+        "actualizar", "actualizo", "actualice", "actualizacion",
+        "dato", "datos", "ayudas", "ayudarme",
     }
     return not any(t not in genericos and not t.startswith('ayud') for t in tokens)
 
@@ -255,6 +317,10 @@ def _resultado_hibrido(h: dict[str, Any]) -> dict[str, Any]:
     }
 
 def _buscar_conocimiento_asistido_base(pregunta: str) -> dict[str, Any]:
+    proteccion = _proteger_credenciales_ajenas(pregunta)
+    if proteccion:
+        return proteccion
+
     aclaracion = _aclaracion_previa(pregunta)
     if aclaracion:
         return _pedir_aclaracion(aclaracion, "pregunta_ambigua_o_multiple")
@@ -298,17 +364,30 @@ def _buscar_conocimiento_asistido_base(pregunta: str) -> dict[str, Any]:
 
 
 
-def buscar_conocimiento_asistido(pregunta: str) -> dict[str, Any]:
-    """Busqueda asistida con proteccion de cobertura documentada."""
+# ============================================================
+# PROTECCIONES DEL RESULTADO ASISTIDO
+# ============================================================
 
-    resultado = _buscar_conocimiento_asistido_base(pregunta)
+def _aplicar_protecciones_resultado(
+    pregunta: str,
+    resultado: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Aplica las protecciones posteriores a una búsqueda,
+    independientemente de cómo se haya obtenido el resultado.
+    """
+
     conocimiento = resultado.get("resultado") or {}
 
     if not resultado.get("encontrado") or not conocimiento.get("id"):
         return resultado
 
     def normalizar(texto):
-        texto = unicodedata.normalize("NFKD", str(texto).lower())
+        texto = unicodedata.normalize(
+            "NFKD",
+            str(texto).lower()
+        )
+
         return "".join(
             caracter for caracter in texto
             if not unicodedata.combining(caracter)
@@ -317,7 +396,7 @@ def buscar_conocimiento_asistido(pregunta: str) -> dict[str, Any]:
     consulta = normalizar(pregunta)
     titulo = normalizar(conocimiento.get("titulo") or "")
 
-    # Proteccion verificada: seguimiento no equivale a modificar pedidos.
+    # Seguimiento de pedidos no equivale a modificarlos o cancelarlos.
     if "consulta de estado de pedidos" in titulo:
 
         accion_modificacion = bool(re.search(
@@ -326,7 +405,8 @@ def buscar_conocimiento_asistido(pregunta: str) -> dict[str, Any]:
         ))
 
         menciona_direccion = bool(re.search(
-            r"\bdireccion\b", consulta
+            r"\bdireccion\b",
+            consulta
         ))
 
         accion_cancelacion = bool(re.search(
@@ -334,7 +414,10 @@ def buscar_conocimiento_asistido(pregunta: str) -> dict[str, Any]:
             consulta
         ))
 
-        if (accion_modificacion and menciona_direccion) or accion_cancelacion:
+        if (
+            (accion_modificacion and menciona_direccion)
+            or accion_cancelacion
+        ):
             return _pedir_aclaracion(
                 "El procedimiento encontrado permite consultar el "
                 "seguimiento del pedido, pero no contiene instrucciones "
@@ -345,7 +428,10 @@ def buscar_conocimiento_asistido(pregunta: str) -> dict[str, Any]:
 
     from app.response_validator import verificar_cancelacion
 
-    validacion = verificar_cancelacion(pregunta, conocimiento)
+    validacion = verificar_cancelacion(
+        pregunta,
+        conocimiento
+    )
 
     if validacion["estado"] == "cobertura_no_confirmada":
         return _pedir_aclaracion(
@@ -356,3 +442,91 @@ def buscar_conocimiento_asistido(pregunta: str) -> dict[str, Any]:
         )
 
     return resultado
+
+
+# ============================================================
+# BÚSQUEDA ASISTIDA TRADICIONAL
+# ============================================================
+
+def buscar_conocimiento_asistido(
+    pregunta: str
+) -> dict[str, Any]:
+
+    resultado = _buscar_conocimiento_asistido_base(pregunta)
+
+    return _aplicar_protecciones_resultado(
+        pregunta,
+        resultado
+    )
+
+
+# ============================================================
+# BÚSQUEDA ASISTIDA CON RANKING COMPARTIDO
+# ============================================================
+
+def buscar_conocimiento_asistido_con_ranking(
+    pregunta: str,
+    limite: int = 5
+) -> dict[str, Any]:
+    """
+    Ejecuta las validaciones preventivas, una sola evaluación
+    tradicional y las protecciones posteriores.
+
+    Devuelve:
+        {
+            "busqueda": resultado protegido,
+            "ranking": ranking de la misma evaluación
+        }
+    """
+
+    modo = os.getenv(
+        "EXPERTIA_MODO_BUSQUEDA",
+        "tradicional"
+    ).strip().lower()
+
+    if modo == "rescate":
+        raise RuntimeError(
+            "El selector unificado DEV requiere "
+            "EXPERTIA_MODO_BUSQUEDA=tradicional."
+        )
+
+    # 1. Protecciones previas.
+    proteccion = _proteger_credenciales_ajenas(pregunta)
+    if proteccion:
+        return {"busqueda": proteccion, "ranking": []}
+
+    aclaracion = _aclaracion_previa(pregunta)
+
+    if aclaracion:
+        return {
+            "busqueda": _pedir_aclaracion(
+                aclaracion,
+                "pregunta_ambigua_o_multiple"
+            ),
+            "ranking": [],
+        }
+
+    if _consulta_demasiado_generica(pregunta):
+        return {
+            "busqueda": _pedir_aclaracion(
+                "¿Sobre qué trámite o procedimiento necesitas información?",
+                "pregunta_sin_tema_identificable",
+            ),
+            "ranking": [],
+        }
+
+    # 2. Una sola evaluación tradicional.
+    from app.knowledge_retriever import evaluar_busqueda_y_ranking
+
+    evaluacion = evaluar_busqueda_y_ranking(
+        pregunta,
+        limite=limite
+    )
+
+    # 3. Las mismas protecciones posteriores del flujo original.
+    evaluacion["busqueda"] = _aplicar_protecciones_resultado(
+        pregunta,
+        evaluacion["busqueda"]
+    )
+
+    return evaluacion

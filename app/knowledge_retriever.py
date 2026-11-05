@@ -15,11 +15,9 @@ from app.concept_matcher import (
     cumple_requisito_contexto,
 )
 from app.repository import (
-    obtener_conocimientos,
-    obtener_preguntas_alternativas,
+    cargar_catalogo_completo,
     obtener_recursos_por_conocimiento,
 )
-
 
 # ============================================================
 # PESOS DEL MOTOR (sin cambios)
@@ -151,8 +149,12 @@ def construir_resultado(
     score_concepto,
     score_keywords,
     score_intencion,
+    recursos=None,
 ):
-    recursos = obtener_recursos_por_conocimiento(conocimiento["id"])
+    if recursos is None:
+        recursos = obtener_recursos_por_conocimiento(
+        conocimiento["id"]
+    )
     return {
         "id": conocimiento["id"],
         "titulo": conocimiento["titulo"],
@@ -171,13 +173,130 @@ def construir_resultado(
     }
 
 
+
 # ============================================================
-# BÚSQUEDA PRINCIPAL
+# EVALUACIÓN COMPARTIDA DEL RANKING
 # ============================================================
 
-def buscar_conocimiento(pregunta):
-    conocimientos = obtener_conocimientos()
-    preguntas = obtener_preguntas_alternativas()
+
+def _evaluar_ranking_tradicional(pregunta):
+    """
+    Ejecuta una única carga del catálogo y una evaluación
+    tradicional completa.
+
+    Reutiliza conocimientos, preguntas, keywords e intenciones
+    desde la carga centralizada del repositorio.
+    """
+
+    catalogo = cargar_catalogo_completo()
+
+    conocimientos = catalogo["conocimientos"]
+    preguntas = catalogo["preguntas"]
+    keywords = catalogo["keywords"]
+    variantes_intencion = catalogo["variantes_intencion"]
+
+    if not conocimientos:
+        return {
+            "catalogo": catalogo,
+            "conocimientos": [],
+            "preguntas": [],
+            "intencion": None,
+            "puntajes_keywords": {},
+            "resultados": [],
+        }
+
+    alternativas = agrupar_preguntas_alternativas(preguntas)
+
+    puntajes_keywords = calcular_puntajes_keywords(
+        pregunta,
+        keywords=keywords,
+    )
+
+    intencion = detectar_intencion(
+        pregunta,
+        variantes=variantes_intencion,
+    )
+
+    score_intencion = intencion["score"] if intencion else 0.0
+
+    resultados = []
+
+    for conocimiento in conocimientos:
+
+        conocimiento_id = conocimiento["id"]
+
+        if not cumple_requisito_contexto(
+            pregunta,
+            conocimiento_id
+        ):
+            continue
+
+        preguntas_conocimiento = alternativas.get(
+            conocimiento_id,
+            []
+        )
+
+        conceptual = calcular_score_conceptual(
+            pregunta,
+            conocimiento,
+            preguntas_conocimiento,
+        )
+
+        score_concepto = conceptual["score"]
+
+        score_keywords = calcular_score_keywords(
+            conocimiento_id,
+            puntajes_keywords,
+            conocimiento,
+        )
+
+        score_final = (
+            score_concepto * PESO_CONCEPTO
+            + score_keywords * PESO_KEYWORDS
+            + score_intencion * PESO_INTENCION
+        )
+
+        resultados.append({
+            "conocimiento": conocimiento,
+            "score": score_final,
+            "score_concepto": score_concepto,
+            "score_keywords": score_keywords,
+            "score_intencion": score_intencion,
+        })
+
+    resultados.sort(
+        key=lambda x: x["score"],
+        reverse=True
+    )
+
+    resultados = _reordenar_con_contraste(
+        pregunta,
+        conocimientos,
+        preguntas,
+        resultados,
+        diagnostico=False,
+    )
+
+    return {
+        "catalogo": catalogo,
+        "conocimientos": conocimientos,
+        "preguntas": preguntas,
+        "intencion": intencion,
+        "puntajes_keywords": puntajes_keywords,
+        "resultados": resultados,
+    }
+
+
+# ============================================================
+# CONSTRUIR RESPUESTA TRADICIONAL
+# ============================================================
+
+def _construir_respuesta_desde_evaluacion(evaluacion):
+
+    conocimientos = evaluacion["conocimientos"]
+    intencion = evaluacion["intencion"]
+    puntajes_keywords = evaluacion["puntajes_keywords"]
+    resultados = evaluacion["resultados"]
 
     if not conocimientos:
         return {
@@ -187,51 +306,6 @@ def buscar_conocimiento(pregunta):
             "intencion": None,
             "mensaje": "No existen conocimientos activos.",
         }
-
-    alternativas = agrupar_preguntas_alternativas(preguntas)
-    puntajes_keywords = calcular_puntajes_keywords(pregunta)
-    intencion = detectar_intencion(pregunta)
-    score_intencion = intencion["score"] if intencion else 0.0
-
-    resultados = []
-    for conocimiento in conocimientos:
-        conocimiento_id = conocimiento["id"]
-
-        # CORRECCIÓN: el contexto es obligatorio para TODO el ranking.
-        # No basta con anular el score conceptual, ya que las keywords
-        # podrían hacer ganar a un conocimiento fuera de contexto.
-        if not cumple_requisito_contexto(pregunta, conocimiento_id):
-            continue
-
-        preguntas_conocimiento = alternativas.get(conocimiento_id, [])
-        conceptual = calcular_score_conceptual(
-            pregunta,
-            conocimiento,
-            preguntas_conocimiento,
-        )
-        score_concepto = conceptual["score"]
-        score_keywords = calcular_score_keywords(
-            conocimiento_id,
-            puntajes_keywords,
-            conocimiento,
-        )
-        score_final = (
-            score_concepto * PESO_CONCEPTO
-            + score_keywords * PESO_KEYWORDS
-            + score_intencion * PESO_INTENCION
-        )
-        resultados.append({
-            "conocimiento": conocimiento,
-            "score": score_final,
-            "score_concepto": score_concepto,
-            "score_keywords": score_keywords,
-            "score_intencion": score_intencion,
-        })
-
-    resultados.sort(key=lambda x: x["score"], reverse=True)
-    resultados = _reordenar_con_contraste(
-        pregunta, conocimientos, preguntas, resultados, diagnostico=False
-    )
 
     if not resultados:
         return {
@@ -243,14 +317,14 @@ def buscar_conocimiento(pregunta):
         }
 
     mejor = resultados[0]
+
     UMBRAL_CONFIANZA = 0.35
+
     encontrado = mejor["score"] >= UMBRAL_CONFIANZA
+
     score_salida = mejor["score"]
 
-    # Rescate separado del reranking, desactivado por defecto. Exige
-    # evidencia suficiente, ventaja sobre el siguiente candidato y un mínimo
-    # de respaldo del ranking clásico. No intenta verificar acciones sin
-    # cobertura documental, que siguen a cargo del orquestador.
+    # Se conserva la condición de rescate existente.
     if (
         not encontrado
         and os.getenv("EXPERTIA_RANKING_CONTRASTIVO", "0") == "1"
@@ -260,7 +334,21 @@ def buscar_conocimiento(pregunta):
         and mejor["score"] >= 0.18
     ):
         encontrado = True
-        score_salida = max(mejor["score"], mejor["_contraste_score"])
+
+        score_salida = max(
+            mejor["score"],
+            mejor["_contraste_score"]
+        )
+
+    detalle_ranking = {
+        "conocimiento_id": mejor["conocimiento"]["id"],
+        "titulo": mejor["conocimiento"]["titulo"],
+        "score_total": round(mejor["score"], 4),
+        "score_concepto": round(mejor["score_concepto"], 4),
+        "score_keywords": round(mejor["score_keywords"], 4),
+        "score_intencion": round(mejor["score_intencion"], 4),
+        "keywords_detectadas": puntajes_keywords,
+    }
 
     if not encontrado:
         return {
@@ -268,24 +356,20 @@ def buscar_conocimiento(pregunta):
             "confianza": round(mejor["score"], 2),
             "resultado": None,
             "intencion": intencion,
-            "detalle_ranking": {
-                "conocimiento_id": mejor["conocimiento"]["id"],
-                "titulo": mejor["conocimiento"]["titulo"],
-                "score_total": round(mejor["score"], 4),
-                "score_concepto": round(mejor["score_concepto"], 4),
-                "score_keywords": round(mejor["score_keywords"], 4),
-                "score_intencion": round(mejor["score_intencion"], 4),
-                "keywords_detectadas": puntajes_keywords,
-            },
-            "mensaje": "No se encontró un conocimiento con suficiente confianza.",
+            "detalle_ranking": detalle_ranking,
+            "mensaje": (
+                "No se encontró un conocimiento "
+                "con suficiente confianza."
+            ),
         }
 
     resultado_final = construir_resultado(
-        mejor["conocimiento"],
-        score_salida,
-        mejor["score_concepto"],
-        mejor["score_keywords"],
-        mejor["score_intencion"],
+    mejor["conocimiento"],
+    score_salida,
+    mejor["score_concepto"],
+    mejor["score_keywords"],
+    mejor["score_intencion"],
+    recursos=mejor["conocimiento"].get("recursos") or [],
     )
 
     return {
@@ -293,17 +377,89 @@ def buscar_conocimiento(pregunta):
         "confianza": round(score_salida, 2),
         "resultado": resultado_final,
         "intencion": intencion,
-        "detalle_ranking": {
-            "conocimiento_id": mejor["conocimiento"]["id"],
-            "titulo": mejor["conocimiento"]["titulo"],
-            "score_total": round(mejor["score"], 4),
-            "score_concepto": round(mejor["score_concepto"], 4),
-            "score_keywords": round(mejor["score_keywords"], 4),
-            "score_intencion": round(mejor["score_intencion"], 4),
-            "keywords_detectadas": puntajes_keywords,
-        },
+        "detalle_ranking": detalle_ranking,
         "mensaje": "Conocimiento encontrado.",
     }
+
+
+# ============================================================
+# FORMATEAR RANKING DE DIAGNÓSTICO
+# ============================================================
+
+def _formatear_ranking_desde_evaluacion(
+    evaluacion,
+    limite=10
+):
+    resultados = evaluacion["resultados"]
+
+    ranking = []
+
+    for fila in resultados:
+
+        conocimiento = fila["conocimiento"]
+
+        ranking.append({
+            "id": conocimiento["id"],
+            "titulo": conocimiento["titulo"],
+            "score": round(fila["score"], 4),
+            "score_concepto": round(
+                fila["score_concepto"], 4
+            ),
+            "score_keywords": round(
+                fila["score_keywords"], 4
+            ),
+            "score_intencion": round(
+                fila["score_intencion"], 4
+            ),
+        })
+
+    return ranking[:limite]
+
+
+# ============================================================
+# EVALUACIÓN COMBINADA PARA EL SELECTOR
+# ============================================================
+
+def evaluar_busqueda_y_ranking(
+    pregunta,
+    limite=10
+):
+    """
+    Genera la respuesta tradicional, el ranking y los datos
+    reutilizables por el selector a partir de una sola evaluación.
+    """
+
+    evaluacion = _evaluar_ranking_tradicional(pregunta)
+
+    respuesta = _construir_respuesta_desde_evaluacion(
+        evaluacion
+    )
+
+    ranking = _formatear_ranking_desde_evaluacion(
+        evaluacion,
+        limite,
+    )
+
+    return {
+        "busqueda": respuesta,
+        "ranking": ranking,
+        "conocimientos": evaluacion["conocimientos"],
+        "preguntas": evaluacion["preguntas"],
+    }
+
+
+
+# ============================================================
+# BÚSQUEDA PRINCIPAL
+# ============================================================
+
+def buscar_conocimiento(pregunta):
+
+    evaluacion = _evaluar_ranking_tradicional(pregunta)
+
+    return _construir_respuesta_desde_evaluacion(
+        evaluacion
+    )
 
 
 # ============================================================
@@ -311,49 +467,10 @@ def buscar_conocimiento(pregunta):
 # ============================================================
 
 def obtener_ranking(pregunta, limite=10):
-    conocimientos = obtener_conocimientos()
-    preguntas = obtener_preguntas_alternativas()
-    alternativas = agrupar_preguntas_alternativas(preguntas)
-    puntajes_keywords = calcular_puntajes_keywords(pregunta)
-    intencion = detectar_intencion(pregunta)
-    score_intencion = intencion["score"] if intencion else 0.0
 
-    resultados = []
-    for conocimiento in conocimientos:
-        conocimiento_id = conocimiento["id"]
+    evaluacion = _evaluar_ranking_tradicional(pregunta)
 
-        # MISMA CORRECCIÓN que en buscar_conocimiento().
-        if not cumple_requisito_contexto(pregunta, conocimiento_id):
-            continue
-
-        preguntas_conocimiento = alternativas.get(conocimiento_id, [])
-        conceptual = calcular_score_conceptual(
-            pregunta,
-            conocimiento,
-            preguntas_conocimiento,
-        )
-        score_concepto = conceptual["score"]
-        score_keywords = calcular_score_keywords(
-            conocimiento_id,
-            puntajes_keywords,
-            conocimiento,
-        )
-        score_final = (
-            score_concepto * PESO_CONCEPTO
-            + score_keywords * PESO_KEYWORDS
-            + score_intencion * PESO_INTENCION
-        )
-        resultados.append({
-            "id": conocimiento_id,
-            "titulo": conocimiento["titulo"],
-            "score": round(score_final, 4),
-            "score_concepto": round(score_concepto, 4),
-            "score_keywords": round(score_keywords, 4),
-            "score_intencion": round(score_intencion, 4),
-        })
-
-    resultados.sort(key=lambda x: x["score"], reverse=True)
-    resultados = _reordenar_con_contraste(
-        pregunta, conocimientos, preguntas, resultados, diagnostico=True
+    return _formatear_ranking_desde_evaluacion(
+        evaluacion,
+        limite,
     )
-    return resultados[:limite]

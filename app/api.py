@@ -1,203 +1,212 @@
-"""
-api.py
 
-API REST del motor de búsqueda de ExperTIA.
-"""
+"""API REST de ExperTIA: tradicional e hibrido DEV."""
+
+import logging
+import os
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from app.database import obtener_conexion
+from app.busqueda_asistida import buscar_conocimiento_asistido
+from app.repository import save_query_history
 
-from app.busqueda_asistida import (
-    buscar_conocimiento_asistido
-)
-
-from app.repository import (
-    save_query_history
-)
-
-
-# ============================================================
-# APLICACIÓN
-# ============================================================
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="ExperTIA Search Engine",
-    version="2.0"
+    version="2.1",
 )
 
 
-# ============================================================
-# MODELO DE REQUEST
-# ============================================================
-
 class ConsultaRequest(BaseModel):
+    pregunta: str = Field(..., min_length=1)
 
-    pregunta: str = Field(
-        ...,
-        min_length=1
-    )
-
-
-# ============================================================
-# HEALTH CHECK
-# ============================================================
 
 @app.get("/health")
 def health():
-
     conexion = None
 
     try:
-
         conexion = obtener_conexion()
-
         return {
             "status": "ok",
-            "database": "connected"
+            "database": "connected",
         }
 
-    except Exception as error:
-
+    except Exception:
+        logger.exception("Error consultando la base de datos")
         return {
             "status": "error",
             "database": "disconnected",
-            "detalle": str(error)
         }
 
     finally:
-
-        if conexion:
+        if conexion is not None:
             conexion.close()
 
 
-# ============================================================
-# BUSCAR
-# ============================================================
+def _ejecutar_busqueda(pregunta: str) -> dict:
+    """
+    Punto unico de entrada de ExperTIA.
 
-@app.post("/buscar")
-def buscar(
-    consulta: ConsultaRequest
-):
+    - Tradicional por defecto.
+    - Hibrido en DEV.
+    - Sin rescates experimentales no certificados.
+    """
 
-    try:
+    modo = os.getenv(
+        "EXPERTIA_API_MOTOR", "tradicional"
+    ).strip().lower()
 
-        # ----------------------------------------------------
-        # Ejecutar motor de búsqueda
-        # ----------------------------------------------------
+    if modo == "tradicional":
+        return buscar_conocimiento_asistido(pregunta)
 
-        resultado = buscar_conocimiento_asistido(
-            consulta.pregunta
+    if modo != "hibrido_dev":
+        raise RuntimeError("Modo de busqueda no autorizado")
+
+    if os.getenv(
+        "EXPERTIA_ENTORNO", ""
+    ).strip().lower() != "dev":
+        raise RuntimeError(
+            "El selector hibrido DEV solo funciona en DEV"
         )
 
-        # ----------------------------------------------------
-        # Obtener ID del conocimiento seleccionado
-        # ----------------------------------------------------
-
-        conocimiento_id = None
-
-        if resultado.get("resultado"):
-
-            conocimiento_id = (
-                resultado[
-                    "resultado"
-                ]["id"]
-            )
-
-        # ----------------------------------------------------
-        # Guardar historial
-        # ----------------------------------------------------
-
-        save_query_history(
-
-            usuario=None,
-
-            pregunta=consulta.pregunta,
-
-            conocimiento_id=conocimiento_id,
-
-            confianza=resultado.get(
-                "confianza",
-                0
-            )
+    if os.getenv(
+        "EXPERTIA_RESCATES_CONSENSO_DEV", "0"
+    ) != "0":
+        raise RuntimeError(
+            "Los rescates experimentales deben estar desactivados"
         )
 
-        # ----------------------------------------------------
-        # Devolver solamente la información necesaria
-        # ----------------------------------------------------
+    # El selector existente ejecuta:
+    # tradicional + pgvector + arbitro.
+    from app.selector_integrado import seleccionar
 
-        if not resultado.get("encontrado"):
+    resultado, diagnostico = seleccionar(pregunta)
 
-            return {
-
-                "encontrado": False,
-
-                "confianza":
-                    resultado.get(
-                        "confianza",
-                        0
-                    ),
-
-                "respuesta":
-                    "No encontré información específica sobre tu consulta.",
-
-                "titulo": None,
-
-                "area": None,
-
-                "proceso": None,
-
-                "responsable": None,
-
-                "recursos": []
-            }
-
-        conocimiento = (
-            resultado["resultado"]
+    if not isinstance(resultado, dict) or not isinstance(
+        diagnostico, dict
+    ):
+        raise RuntimeError(
+            "El selector devolvio un formato inesperado"
         )
+
+    conocimiento = resultado.get("resultado") or {}
+    detalle = conocimiento.get("detalle_ranking") or {}
+
+    # Proteccion adicional ante un rescate no certificado.
+    rescate_experimental = (
+        diagnostico.get("decision")
+        == "PROPUESTA_EXPERIMENTAL_DEV"
+        or detalle.get("metodo")
+        == "rescate_consenso_experimental_dev"
+    )
+
+    if (
+        rescate_experimental
+        and diagnostico.get("cobertura_certificada") is not True
+    ):
+        logger.warning("Rescate no certificado bloqueado")
 
         return {
-
-            "encontrado": True,
-
-            "confianza":
-                conocimiento["confianza"],
-
-            "titulo":
-                conocimiento["titulo"],
-
-            "respuesta":
-                conocimiento["respuesta"],
-
-            "area":
-                conocimiento["area"],
-
-            "proceso":
-                conocimiento["proceso"],
-
-            "responsable":
-                conocimiento["responsable"],
-
-            "recursos":
-                conocimiento["recursos"],
-
-            "detalle_ranking":
-                conocimiento.get(
-                    "detalle_ranking",
-                    {}
-                )
+            "encontrado": False,
+            "confianza": 0.0,
+            "resultado": None,
+            "requiere_aclaracion": True,
+            "mensaje": (
+                "Encontre informacion relacionada, pero "
+                "necesito mas precision para ofrecer "
+                "el procedimiento correcto."
+            ),
+            "_diagnostico_hibrido": diagnostico,
         }
 
-    except Exception as error:
+    if diagnostico.get("estado_vectorial") == "NO_DISPONIBLE":
+        logger.warning(
+            "pgvector DEV no disponible; "
+            "se conservo el motor tradicional"
+        )
+
+    salida = dict(resultado)
+    salida["_diagnostico_hibrido"] = diagnostico
+
+    return salida
+
+
+@app.post("/buscar")
+def buscar(consulta: ConsultaRequest):
+    try:
+        resultado = _ejecutar_busqueda(consulta.pregunta)
+
+        conocimiento = resultado.get("resultado") or {}
+
+        encontrado = bool(
+            resultado.get("encontrado")
+            and conocimiento.get("id")
+        )
+
+        # Un solo registro de historial por consulta.
+        save_query_history(
+            usuario=None,
+            pregunta=consulta.pregunta,
+            conocimiento_id=(
+                conocimiento.get("id") if encontrado else None
+            ),
+            confianza=resultado.get("confianza", 0),
+        )
+
+        if not encontrado:
+            mensaje = (
+                resultado.get("mensaje")
+                if resultado.get("requiere_aclaracion")
+                else None
+            ) or (
+                "No encontré información específica "
+                "sobre tu consulta."
+            )
+
+            return {
+                "encontrado": False,
+                "confianza": resultado.get("confianza", 0),
+                "respuesta": mensaje,
+                "titulo": None,
+                "area": None,
+                "proceso": None,
+                "responsable": None,
+                "recursos": [],
+            }
+
+        detalle = conocimiento.get("detalle_ranking") or {}
+
+        diagnostico = resultado.get("_diagnostico_hibrido")
+
+        if diagnostico is not None:
+            detalle = {
+                **detalle,
+                "diagnostico_hibrido": diagnostico,
+            }
+
+        # Se conserva el contrato que consume Power Automate.
+        return {
+            "encontrado": True,
+            "confianza": conocimiento.get(
+                "confianza",
+                resultado.get("confianza", 0),
+            ),
+            "titulo": conocimiento.get("titulo"),
+            "respuesta": conocimiento.get("respuesta"),
+            "area": conocimiento.get("area"),
+            "proceso": conocimiento.get("proceso"),
+            "responsable": conocimiento.get("responsable"),
+            "recursos": conocimiento.get("recursos") or [],
+            "detalle_ranking": detalle,
+        }
+
+    except Exception:
+        logger.exception("Error ejecutando el motor de busqueda")
 
         raise HTTPException(
-
             status_code=500,
-
-            detail=(
-                "Error ejecutando el "
-                "motor de búsqueda: "
-                + str(error)
-            )
+            detail="Error interno del motor de busqueda",
         )

@@ -17,7 +17,7 @@ from app.repository import get_keyword_matches
 # DETECTAR KEYWORDS
 # ============================================================
 
-def detectar_keywords(pregunta):
+def detectar_keywords(pregunta, keywords=None):
     """
     Detecta keywords relacionadas con la pregunta.
 
@@ -42,7 +42,10 @@ def detectar_keywords(pregunta):
         tokenize(pregunta)
     )
 
-    keywords_bd = get_keyword_matches()
+    if keywords is None:
+        keywords = get_keyword_matches()
+
+    keywords_bd = keywords
 
     encontradas = []
 
@@ -213,7 +216,7 @@ def detectar_keywords(pregunta):
 # CALCULAR PUNTAJES
 # ============================================================
 
-def calcular_puntajes_keywords(pregunta):
+def calcular_puntajes_keywords(pregunta, keywords=None):
     """
     Calcula el puntaje de keywords por conocimiento.
 
@@ -224,11 +227,14 @@ def calcular_puntajes_keywords(pregunta):
     entre keywords equivalentes.
     """
 
-    keywords = detectar_keywords(pregunta)
+    keywords_detectadas = detectar_keywords(
+        pregunta,
+        keywords=keywords
+    )
 
     grupos = {}
 
-    for keyword in keywords:
+    for keyword in keywords_detectadas:
 
         conocimiento_id = keyword["conocimiento_id"]
 

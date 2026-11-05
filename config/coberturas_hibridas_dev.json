@@ -1,0 +1,264 @@
+{
+  "reglas": {
+    "2": {
+      "nombre": "Obtener o consultar el RUT corporativo",
+      "grupos": [
+        [
+          "rut",
+          "registro unico tributario",
+          "documento de identificacion tributaria"
+        ],
+        [
+          "copia",
+          "obtener",
+          "descargar",
+          "consultar",
+          "solicitar",
+          "solicito",
+          "necesito"
+        ]
+      ],
+      "evidencias": [
+        "documentos publicos",
+        "rut actualizado"
+      ],
+      "excluir": [
+        "como actualizar",
+        "como modificar",
+        "corregir el rut",
+        "tramitar un rut nuevo"
+      ],
+      "huella_respuesta": "60e061a34f43aca2db239f8f3e1063f1f63951c7d92020bc8c2d0dc19b66eeb2"
+    },
+    "21": {
+      "nombre": "Fecha de cierre mensual de inventarios",
+      "grupos": [
+        [
+          "inventario",
+          "inventarios",
+          "existencias"
+        ],
+        [
+          "ultimo dia",
+          "corte",
+          "cierre",
+          "fecha",
+          "cuando",
+          "mes"
+        ]
+      ],
+      "evidencias": [
+        "ultimo dia habil",
+        "cada mes"
+      ],
+      "excluir": [],
+      "huella_respuesta": "fe46e3fe51543760288409dc4f96e7993f4eb9d14001303d33b3f85f9a492fda"
+    },
+    "23": {
+      "nombre": "Legalizacion de gastos de caja menor",
+      "grupos": [
+        [
+          "caja menor",
+          "vale de caja",
+          "vale"
+        ],
+        [
+          "justificar",
+          "legalizar",
+          "legalizacion",
+          "facturas",
+          "gasto",
+          "soportes"
+        ]
+      ],
+      "evidencias": [
+        "factura electronica",
+        "3 dias habiles"
+      ],
+      "excluir": [],
+      "huella_respuesta": "ff54ff1468cc203850aa496667b4030adf4989cd9a076f5cf0e88c1a4c1d4499"
+    },
+    "27": {
+      "nombre": "Obtener PDF de nota credito",
+      "grupos": [
+        [
+          "nota de abono",
+          "nota credito",
+          "nota crediticia"
+        ],
+        [
+          "copia digital",
+          "pdf",
+          "descargar",
+          "copia",
+          "documento",
+          "obtener"
+        ]
+      ],
+      "evidencias": [
+        "nota credito",
+        "carpeta z"
+      ],
+      "excluir": [],
+      "huella_respuesta": "63d5e699eb712260441af7b7bc663f6b0780a82cfdada808cd2cd454cc782a87"
+    },
+    "29": {
+      "nombre": "Consultar proveedor de material productivo",
+      "grupos": [
+        [
+          "material de empaque",
+          "materiales productivos",
+          "material",
+          "materia prima"
+        ],
+        [
+          "suministra",
+          "proveedor",
+          "quien",
+          "identificar",
+          "consultar"
+        ]
+      ],
+      "evidencias": [
+        "detalle de articulo",
+        "proveedor"
+      ],
+      "excluir": [],
+      "huella_respuesta": "8276c2e43154331db628c762e7ac73f006af000f74f0bb86502022b287281748"
+    },
+    "31": {
+      "nombre": "Anticipacion para viajes internacionales",
+      "grupos": [
+        [
+          "exterior",
+          "internacional",
+          "internacionales",
+          "fuera del pais"
+        ],
+        [
+          "anticipacion",
+          "cuantos meses",
+          "meses",
+          "plazo",
+          "tiempo"
+        ]
+      ],
+      "evidencias": [
+        "viajes internacionales",
+        "dos 2 meses de anticipacion"
+      ],
+      "excluir": [
+        "como reservo",
+        "como reservar",
+        "gestionar vuelos",
+        "gestionar alojamiento",
+        "paso a paso para reservar",
+        "como comprar los tiquetes"
+      ],
+      "huella_respuesta": "60bc6e0e483b34a2e41413501bf3affd1264f08d0f187da348856458fa8be4d6"
+    },
+    "37": {
+      "nombre": "Ampliacion de cupo de credito",
+      "grupos": [
+        [
+          "cupo de credito",
+          "limite de financiacion",
+          "financiacion"
+        ],
+        [
+          "aumentar",
+          "ampliar",
+          "ampliacion",
+          "formulario",
+          "formato",
+          "solicitud"
+        ]
+      ],
+      "evidencias": [
+        "ampliacion de cupo de credito",
+        "documentos publicos"
+      ],
+      "excluir": [],
+      "huella_respuesta": "2896438c6f5620dd0cad5b56dd13ae10daac07ca18d6d94c15f3ef3e83e56b2c"
+    },
+    "40": {
+      "nombre": "Actualizar correo registrado de proveedor",
+      "grupos": [
+        [
+          "proveedor",
+          "tesoreria"
+        ],
+        [
+          "correo",
+          "direccion electronica",
+          "email"
+        ],
+        [
+          "actualizar",
+          "actualizarla",
+          "cambio",
+          "cambiar",
+          "registrado",
+          "validar"
+        ]
+      ],
+      "evidencias": [
+        "area de tesoreria",
+        "nuevo correo electronico"
+      ],
+      "excluir": [],
+      "huella_respuesta": "61bf7931602f540f23d8320500ffdf990db28061a7b6f53e58d3892288e8ce36"
+    },
+    "43": {
+      "nombre": "Consultar estado de cuenta actualizado",
+      "grupos": [
+        [
+          "cliente",
+          "cartera",
+          "cuenta"
+        ],
+        [
+          "saldos",
+          "facturas pendientes",
+          "estado de cuenta"
+        ],
+        [
+          "actualizado",
+          "actualizada",
+          "documento",
+          "descargar",
+          "consultar"
+        ]
+      ],
+      "evidencias": [
+        "estado de cuenta actualizado",
+        "listado de clientes"
+      ],
+      "excluir": [],
+      "huella_respuesta": "8178042ac5d0a9ebe4d0e4c88122a20105eb62d85d16a2e7cbcc09bb98105327"
+    },
+    "44": {
+      "nombre": "Desbloquear un pedido por cartera",
+      "grupos": [
+        [
+          "pedido",
+          "pedidos"
+        ],
+        [
+          "cartera",
+          "facturas vencidas",
+          "cupo de credito",
+          "desbloqueo",
+          "retenido",
+          "liberar"
+        ]
+      ],
+      "evidencias": [
+        "desbloqueo del pedido",
+        "area de cartera"
+      ],
+      "excluir": [],
+      "huella_respuesta": "63baf261862cae6e78c5c0224e1a986d4cb4d0c710fb2af75b2d6dcd5b34c4e6"
+    }
+  }
+}

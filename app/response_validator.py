@@ -410,7 +410,14 @@ def verificar_cancelacion(pregunta: str, conocimiento: dict) -> dict:
 
     patron = r"\b(cancelar|cancelo|cancelacion|anular|anulo|anulacion)\b"
 
-    if not re.search(patron, consulta):
+# Distinguir "cancelo" (presente) de "canceló" (pasado).
+# La normalización anterior eliminaba esta diferencia.
+    patron_consulta = (
+        r"\b(?:cancelar|cancelo|cancelaci[oó]n|"
+        r"anular|anulo|anulaci[oó]n)\b"
+    )
+
+    if not re.search(patron_consulta, pregunta.lower()):
         return {
             "estado": "sin_restriccion_especial",
             "motivo": None
