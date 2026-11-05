@@ -62,15 +62,15 @@ def _ejecutar_busqueda(pregunta: str) -> dict:
     if modo == "tradicional":
         return buscar_conocimiento_asistido(pregunta)
 
-    if modo != "hibrido_dev":
+    entorno = os.getenv("EXPERTIA_ENTORNO", "").strip().lower()
+    if modo == "hibrido_dev":
+        if entorno != "dev":
+            raise RuntimeError("hibrido_dev solo funciona en DEV")
+    elif modo == "hibrido":
+        if entorno != "prod":
+            raise RuntimeError("hibrido exige EXPERTIA_ENTORNO=prod")
+    else:
         raise RuntimeError("Modo de busqueda no autorizado")
-
-    if os.getenv(
-        "EXPERTIA_ENTORNO", ""
-    ).strip().lower() != "dev":
-        raise RuntimeError(
-            "El selector hibrido DEV solo funciona en DEV"
-        )
 
     if os.getenv(
         "EXPERTIA_RESCATES_CONSENSO_DEV", "0"
@@ -83,7 +83,13 @@ def _ejecutar_busqueda(pregunta: str) -> dict:
     # tradicional + pgvector + arbitro.
     from app.selector_integrado import seleccionar
 
-    resultado, diagnostico = seleccionar(pregunta)
+    try:
+        resultado, diagnostico = seleccionar(pregunta)
+    except Exception:
+        if modo == "hibrido":
+            logger.exception("Fallo el hibrido; se conserva el buscador tradicional")
+            return buscar_conocimiento_asistido(pregunta)
+        raise
 
     if not isinstance(resultado, dict) or not isinstance(
         diagnostico, dict

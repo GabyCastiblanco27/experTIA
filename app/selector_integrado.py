@@ -82,7 +82,15 @@ def validar_regla(pregunta, conocimiento):
 def seleccionar(pregunta):
     resultado, diagnostico = seleccionar_base(pregunta)
 
-    if os.getenv("EXPERTIA_ENTORNO", "").lower() != "dev":
+    entorno = os.getenv("EXPERTIA_ENTORNO", "").strip().lower()
+    reglas_habilitadas = (
+        entorno == "dev"
+        or (
+            entorno == "prod"
+            and os.getenv("EXPERTIA_HIBRIDO_REGLAS_PROD", "0") == "1"
+        )
+    )
+    if not reglas_habilitadas:
         return resultado, diagnostico
 
     if os.getenv("EXPERTIA_RESCATES_CONSENSO_DEV", "0") != "0":
