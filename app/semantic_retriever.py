@@ -28,11 +28,11 @@ def cargar_modelo():
     )
 
     return TextEmbedding(
-        model_name=_MODELO_ONNX,
-        threads=1,
-        max_length=512,
+    model_name=_MODELO_ONNX,
+    threads=1,
+    max_length=512,
+    enable_cpu_mem_arena=False,
     )
-
 
 def generar_embeddings(textos, tipo="passage"):
     """
