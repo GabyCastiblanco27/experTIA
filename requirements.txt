@@ -3,7 +3,4 @@ uvicorn
 psycopg2-binary
 python-dotenv
 numpy
-torch
-transformers
-sentence-transformers
-sentencepiece
+fastembed==0.9.1
