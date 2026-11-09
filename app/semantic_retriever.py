@@ -1,21 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Embeddings compactos para ExperTIA usando ONNX Runtime sin PyTorch.
+"""Bekko para ExperTIA con carga aislada para servidores de RAM limitada.
 
-Modelo: hotchpotch/bekko-embedding-v1-a8m.
-El archivo ONNX y tokenizer se preparan durante el Build de Render.
-El modelo NO recibe prefijos E5: no son compatibles con Bekko.
+El proceso web no carga ni el tokenizer ni ONNX. Ejecuta primero un proceso
+corto para tokenizar, espera a que termine y solo despues inicia otro
+proceso para inferencia. Conservar modelo, pooling, limite y vectores.
 """
+from __future__ import annotations
+
+import json
+import logging
 import os
-
-# Debe configurarse antes de importar ONNX/NumPy.
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-
-from functools import lru_cache
+import subprocess
+import sys
 from pathlib import Path
-
-import numpy as np
+from threading import Lock
 
 MODELO = "hotchpotch/bekko-embedding-v1-a8m"
 _MODELO_DIR = Path(__file__).resolve().parents[1] / "modelos" / "bekko"
@@ -23,88 +21,99 @@ _MODELO_ONNX = _MODELO_DIR / "onnx" / "model.onnx"
 _TOKENIZER_JSON = _MODELO_DIR / "tokenizer.json"
 _MAX_TOKENS = 192
 
+# Serializa toda la operacion en un worker web. No multiplica consumos
+# por peticiones HTTP simultaneas dentro del mismo proceso uvicorn.
+_LOCK = Lock()
 
-@lru_cache(maxsize=1)
-def cargar_modelo():
-    """Carga una sola sesión ONNX, en CPU y con memoria de arena desactivada."""
-    if not _MODELO_ONNX.is_file() or not _TOKENIZER_JSON.is_file():
-        raise FileNotFoundError(
-            "Bekko no preparado. Ejecuta: python scripts/descargar_modelo_bekko.py"
+
+def _ejecutar(etapa: str, datos: dict, timeout: int) -> dict:
+    entorno = os.environ.copy()
+    entorno.update({
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "TOKENIZERS_PARALLELISM": "false",
+        "MALLOC_ARENA_MAX": "2",
+    })
+    try:
+        proceso = subprocess.run(
+            [sys.executable, "-m", "app.bekko_worker", etapa],
+            input=json.dumps(datos, ensure_ascii=False),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+            env=entorno,
         )
-
-    # Imports tardíos: el motor tradicional nunca carga estas librerías.
-    import onnxruntime as ort
-    from tokenizers import Tokenizer
-
-    tokenizer = Tokenizer.from_file(str(_TOKENIZER_JSON))
-    tokenizer.enable_truncation(max_length=_MAX_TOKENS)
-    opciones = ort.SessionOptions()
-    opciones.intra_op_num_threads = 1
-    opciones.inter_op_num_threads = 1
-    opciones.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-    opciones.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-    opciones.enable_cpu_mem_arena = False
-    opciones.enable_mem_pattern = False
-
-    sesion = ort.InferenceSession(
-        str(_MODELO_ONNX),
-        sess_options=opciones,
-        providers=["CPUExecutionProvider"],
-    )
-    entradas = {entrada.name for entrada in sesion.get_inputs()}
-    if not entradas.issubset({"input_ids", "attention_mask", "token_type_ids"}):
-        raise RuntimeError("La firma ONNX de Bekko no coincide con la esperada")
-    return tokenizer, sesion, entradas
-
-
-def _vector_texto(texto, tokenizer, sesion, nombres):
-    tokens = tokenizer.encode(texto, add_special_tokens=True)
-    entradas = {
-        "input_ids": np.asarray([tokens.ids], dtype=np.int64),
-        "attention_mask": np.asarray([tokens.attention_mask], dtype=np.int64),
-        "token_type_ids": np.asarray([tokens.type_ids], dtype=np.int64),
-    }
-    salida = np.asarray(sesion.run(None, {k: entradas[k] for k in nombres})[0])
-
-    if salida.ndim == 3:
-        mascara = entradas["attention_mask"][..., None]
-        vector = (salida * mascara).sum(axis=1) / np.maximum(mascara.sum(axis=1), 1)
-    elif salida.ndim == 2:
-        vector = salida
-    else:
-        raise RuntimeError(f"Forma ONNX inesperada: {salida.shape}")
-
-    if vector.shape != (1, 384) or not np.isfinite(vector).all():
-        raise RuntimeError("Bekko devolvió embeddings inválidos")
-    norma = float(np.linalg.norm(vector[0]))
-    if not np.isfinite(norma) or norma < 1e-8:
-        raise RuntimeError("Norma de embedding inválida")
-    return np.asarray(vector[0] / norma, dtype=np.float32)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"Bekko etapa {etapa}: tiempo agotado") from e
+    if proceso.returncode != 0:
+        # El selector conserva el fallback tradicional. No exponer stderr de
+        # librerias ni secretos de infraestructura al cliente.
+        raise RuntimeError(
+            f"Bekko etapa {etapa}: proceso finalizo con codigo {proceso.returncode}"
+        )
+    try:
+        respuesta = json.loads(proceso.stdout)
+        if not isinstance(respuesta, dict):
+            raise ValueError("Formato inesperado")
+        return respuesta
+    except (ValueError, TypeError) as e:
+        raise RuntimeError(f"Bekko etapa {etapa}: salida no valida") from e
 
 
 def generar_embeddings(textos, tipo="passage"):
-    """Contratado con selector actual: matriz (n, 384) normalizada.
-
-    'tipo' se conserva para compatibilidad, pero Bekko no usa prefijos query/passage.
-    La inferencia es secuencial para limitar la RAM.
-    """
+    """Devuelve ndarray (n,384) normalizado, igual contrato del selector."""
     if tipo not in ("query", "passage"):
         raise ValueError("tipo debe ser 'query' o 'passage'")
     if not textos:
         raise ValueError("Se requiere al menos un texto")
-    tokenizer, sesion, nombres = cargar_modelo()
-    return np.stack([
-        _vector_texto(str(t), tokenizer, sesion, nombres) for t in textos
-    ], axis=0)
+    if not _MODELO_ONNX.is_file() or not _TOKENIZER_JSON.is_file():
+        raise FileNotFoundError(
+            "Bekko no preparado: python scripts/descargar_modelo_bekko.py"
+        )
+
+    # Los procesos son SECUENCIALES: el tokenizer ya termino y libero su
+    # memoria antes de que se cargue ONNX Runtime.
+    with _LOCK:
+        codificados = _ejecutar(
+            "tokenizar", {"textos": [str(t) for t in textos]}, timeout=40
+        )
+        vectores = _ejecutar("inferir", codificados, timeout=60)
+
+    # Metrica para diagnostico: son picos de PROCESOS SEPARADOS,
+    # no se suman entre si. No incluye preguntas ni credenciales.
+    try:
+        import resource
+        padre = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+    except ImportError:
+        padre = "no_disponible"
+    logging.getLogger("uvicorn.error").info(
+        "BEKKO_PROCESOS_RAM pico_token_mb=%s pico_inferencia_mb=%s pico_api_mb=%s",
+        codificados.get("_worker_peak_mb", "nd"),
+        vectores.get("_worker_peak_mb", "nd"),
+        padre,
+    )
+
+    # Solo importar numpy en el servidor web al terminar los dos procesos.
+    import numpy as np
+    matriz = np.asarray(vectores.get("vectores"), dtype=np.float32)
+    if (
+        matriz.shape != (len(textos), 384)
+        or not np.isfinite(matriz).all()
+    ):
+        raise RuntimeError("Bekko devolvio matriz incorrecta")
+    return matriz
 
 
 def calcular_similitud(pregunta, documentos):
-    """Conserva el formato histórico usado por otras partes de ExperTIA."""
+    """Conserva el contrato previo de ranking vectorial."""
     if not documentos:
         return []
-    vector_pregunta = generar_embeddings([pregunta], tipo="query")[0]
-    vectores = generar_embeddings(documentos, tipo="passage")
-    similitudes = np.dot(vectores, vector_pregunta)
+    import numpy as np
+    vectores = generar_embeddings([pregunta] + list(documentos), tipo="query")
+    similitudes = np.dot(vectores[1:], vectores[0])
     ranking = np.argsort(-similitudes)
     return [
         {
