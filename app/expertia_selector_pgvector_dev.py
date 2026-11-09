@@ -1,5 +1,7 @@
 """ExperTIA: selector híbrido DEV, versión integrada.
 
+Índice BEKKO aislado; el índice E5 original permanece sin modificaciones.
+
 Estrategia:
   - Mantiene la decisión tradicional y sus aclaraciones existentes.
   - pgvector recupera candidatos; el árbitro contrastivo reordena desacuerdos.
@@ -104,7 +106,7 @@ def _comprobar_indice(con, catalogo):
         with con.cursor() as cur:
             cur.execute("""
                 SELECT conocimiento_id, modelo
-                FROM public.expertia_indice_vectorial_dev
+                FROM public.expertia_indice_vectorial_bekko
             """)
             filas = cur.fetchall()
 
@@ -131,7 +133,7 @@ def buscar_top_vectorial(pregunta, catalogo, limite=3):
             cur.execute("""
                 SELECT conocimiento_id,
                        1 - (embedding <=> %s::vector) AS similitud
-                FROM public.expertia_indice_vectorial_dev
+                FROM public.expertia_indice_vectorial_bekko
                 WHERE modelo = %s
                   AND conocimiento_id = ANY(%s)
                 ORDER BY embedding <=> %s::vector, conocimiento_id
