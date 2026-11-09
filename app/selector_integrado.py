@@ -79,6 +79,59 @@ def validar_regla(pregunta, conocimiento):
 
 
 
+# EXPERTIA_ALIAS_VIAJE_ALOJAMIENTO_V1
+
+def _alias_viaje_alojamiento(pregunta, diagnostico):
+    """Solo amplia una consulta muy concreta; nunca fuerza un ID."""
+    if diagnostico.get("motivo") != "evidencia_no_concluyente":
+        return None
+    if diagnostico.get("tradicional_id_candidato") != 31:
+        return None
+    if 31 not in (diagnostico.get("vector_top3") or []):
+        return None
+
+    palabras = set(normalizar(pregunta).split())
+    viaje = bool(palabras & {
+        "viajar", "viaje", "viajes", "viajo", "viajando", "comision",
+    })
+    trabajo = bool(palabras & {
+        "trabajo", "laboral", "laborales", "empresa",
+        "corporativo", "corporativa", "corporativos", "corporativas",
+    })
+    alojamiento = bool(palabras & {
+        "hotel", "hoteles", "alojamiento", "hospedaje", "hospedarme",
+    })
+    exclusion = bool(palabras & {
+        "cancelar", "cancelacion", "anular", "reembolso", "devolucion",
+        "vacaciones", "vacacional", "reclamo", "queja",
+    })
+    if not (viaje and trabajo and alojamiento) or exclusion:
+        return None
+
+    # Confirmar la respuesta con AMBOS motores, aplicando sus reglas actuales.
+    # No se acepta un rescate experimental ni se modifica ningún umbral.
+    alternativa = '¿Cómo solicito alojamiento y hotel para un viaje corporativo de trabajo?'
+    resultado_alias, diag_alias = seleccionar_base(alternativa)
+    conocimiento = resultado_alias.get("resultado") or {}
+    if not (
+        resultado_alias.get("encontrado")
+        and int(conocimiento.get("id") or 0) == 31
+        and diag_alias.get("tradicional_id_aceptado") == 31
+        and diag_alias.get("vector_id_candidato") == 31
+        and diag_alias.get("decision") == "RESPUESTA"
+    ):
+        return None
+
+    diag_confirmado = {
+        **diag_alias,
+        "motivo": "normalizacion_contextual_viaje_alojamiento",
+        "pregunta_original_preservada": True,
+        "alias_contextual_aplicado": True,
+        "cobertura_certificada": False,
+    }
+    return resultado_alias, diag_confirmado
+
+
 def seleccionar(pregunta):
     resultado, diagnostico = seleccionar_base(pregunta)
 
@@ -102,6 +155,10 @@ def seleccionar(pregunta):
     # Mantener las aclaraciones originales protegidas.
     if diagnostico.get("motivo") == "proteccion_existente":
         return resultado, diagnostico
+
+    respuesta_alias = _alias_viaje_alojamiento(pregunta, diagnostico)
+    if respuesta_alias is not None:
+        return respuesta_alias
 
     # Permitir revisar aclaraciones provisionales del h?brido.
     if resultado.get("requiere_aclaracion"):
