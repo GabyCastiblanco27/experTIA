@@ -236,3 +236,12 @@ def seleccionar(pregunta):
         }, diag
 
     return resultado, diagnostico
+
+
+# EXPERTIA_RESCATE_DUAL_DOCUMENTAL_V1
+from app.rescate_documental_dual_dev import aplicar_rescate as _aplicar_rescate_dual_documental
+_seleccionar_antes_rescate_dual_documental = seleccionar
+
+def seleccionar(pregunta):
+    resultado, diagnostico = _seleccionar_antes_rescate_dual_documental(pregunta)
+    return _aplicar_rescate_dual_documental(pregunta, resultado, diagnostico)
