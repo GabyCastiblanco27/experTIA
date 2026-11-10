@@ -386,7 +386,35 @@ def seleccionar(pregunta):
         score_tradicional = (
             float(primero_tradicional["score"]) if primero_tradicional else 0.0
         )
-        vectoriales = buscar_top_vectorial(pregunta, catalogo, limite=3)
+        # EXPERIMENTO EN SOMBRA: union de candidatos, nunca una respuesta.
+        # Conservamos el vectorial original para todas las decisiones vigentes.
+        dual = None
+        if (
+            os.getenv("EXPERTIA_ENTORNO", "").strip().lower() == "dev"
+            and _flag("EXPERTIA_DUAL_SOMBRA_DEV")
+        ):
+            try:
+                from app.recuperacion_dual_dev import buscar_candidatos_duales
+                dual = buscar_candidatos_duales(pregunta, catalogo, limite=3)
+                diagnostico["dual_sombra"] = {
+                    "estado": "EVALUADO",
+                    "original_top3": [x["id"] for x in dual["original"]],
+                    "multi_top3": [x["id"] for x in dual["multi"]],
+                    "union_ids": [x["id"] for x in dual["union"]],
+                    "respuesta_modificada": False,
+                    "cobertura_certificada": False,
+                }
+            except Exception as exc:
+                # Si falla el índice experimental, NO sacrificar el original.
+                diagnostico["dual_sombra"] = {
+                    "estado": "NO_DISPONIBLE",
+                    "tipo_error": type(exc).__name__,
+                    "respuesta_modificada": False,
+                    "cobertura_certificada": False,
+                }
+        vectoriales = dual["original"] if dual is not None else buscar_top_vectorial(
+            pregunta, catalogo, limite=3
+        )
         primero_vector = vectoriales[0] if vectoriales else None
         vector_id = int(primero_vector["id"]) if primero_vector else None
         similitud = float(primero_vector["similitud"]) if primero_vector else 0.0
@@ -440,6 +468,27 @@ def seleccionar(pregunta):
                 )
         except Exception as exc:
             diagnostico["arbitro_sombra"] = {
+                "estado": "ERROR",
+                "tipo_error": type(exc).__name__,
+                "respuesta_modificada": False,
+                "cobertura_certificada": False,
+            }
+
+    # Segundo árbitro independiente: observa el Top 3 + Top 3 sin modificar
+    # las decisiones ni activar rescates. El consenso tradicional permanece igual.
+    if modo_sombra and "dual" in locals() and dual is not None:
+        try:
+            dual_arb = _evaluar_arbitro(
+                pregunta, catalogo, dual["union"], tradicional_id,
+                id_aceptado, vector_id, alternativas, conocimientos,
+            )
+            diagnostico["arbitro_dual_sombra"] = {
+                **dual_arb,
+                "respuesta_modificada": False,
+                "cobertura_certificada": False,
+            }
+        except Exception as exc:
+            diagnostico["arbitro_dual_sombra"] = {
                 "estado": "ERROR",
                 "tipo_error": type(exc).__name__,
                 "respuesta_modificada": False,
