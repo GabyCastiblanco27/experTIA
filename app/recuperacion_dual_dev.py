@@ -19,21 +19,9 @@ TABLA_MULTI = "public.expertia_indice_vectorial_bekko_multi_v1_dev"
 
 
 def _conexion():
-    if os.getenv("EXPERTIA_ENTORNO", "").strip().lower() != "dev":
-        raise RuntimeError("La recuperación dual experimental se limita a DEV")
-    if os.getenv("EXPERTIA_CONFIRMAR_NEON_DEV") != "SI":
-        raise RuntimeError("Se requiere confirmación explícita de Neon DEV")
-    url = (os.getenv("EXPERTIA_PGVECTOR_DEV_URL") or "").strip()
-    if not url:
-        raise RuntimeError("Falta conexión de Neon DEV")
-    dsn = parse_dsn(url)
-    if not (dsn.get("host") or "").lower().endswith(".neon.tech"):
-        raise RuntimeError("Host Neon no autorizado")
-    if (dsn.get("sslmode") or "").lower() not in {"require", "verify-ca", "verify-full"}:
-        raise RuntimeError("Se requiere conexión cifrada SSL")
-    con = psycopg2.connect(url, connect_timeout=15)
-    con.set_session(readonly=True, autocommit=True)
-    return con
+    from app.conexion_vectorial_expertia import conexion_vectorial
+    return conexion_vectorial()
+
 
 
 def _validar_indice(cur, tabla, modelo, ids, por_conocimiento):

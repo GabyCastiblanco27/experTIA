@@ -57,23 +57,10 @@ def _normalizar(texto):
 
 
 def _conexion_dev():
-    url = (os.getenv("EXPERTIA_PGVECTOR_DEV_URL") or "").strip()
-    if not url:
-        raise RuntimeError("Falta EXPERTIA_PGVECTOR_DEV_URL")
-    if os.getenv("EXPERTIA_CONFIRMAR_NEON_DEV") != "SI":
-        raise RuntimeError("Debes confirmar la conexión Neon DEV")
+    # Conservamos el nombre por compatibilidad con el selector existente.
+    from app.conexion_vectorial_expertia import conexion_vectorial
+    return conexion_vectorial()
 
-    parametros = parse_dsn(url)
-    host = (parametros.get("host") or "").lower()
-    sslmode = (parametros.get("sslmode") or "").lower()
-    if not host.endswith(".neon.tech"):
-        raise RuntimeError("Host Neon no autorizado")
-    if sslmode not in {"require", "verify-ca", "verify-full"}:
-        raise RuntimeError("La conexión requiere TLS")
-
-    conexion = psycopg2.connect(url, connect_timeout=15)
-    conexion.set_session(readonly=True, autocommit=True)
-    return conexion
 
 
 def _catalogo(conocimientos):
@@ -389,10 +376,16 @@ def seleccionar(pregunta):
         # EXPERIMENTO EN SOMBRA: union de candidatos, nunca una respuesta.
         # Conservamos el vectorial original para todas las decisiones vigentes.
         dual = None
-        if (
-            os.getenv("EXPERTIA_ENTORNO", "").strip().lower() == "dev"
-            and _flag("EXPERTIA_DUAL_SOMBRA_DEV")
-        ):
+        entorno_dual = os.getenv("EXPERTIA_ENTORNO", "").strip().lower()
+        dual_habilitado = (
+            (entorno_dual == "dev" and _flag("EXPERTIA_DUAL_SOMBRA_DEV"))
+            or (
+                entorno_dual == "prod"
+                and _flag("EXPERTIA_VECTOR_PROD_ENABLE")
+                and _flag("EXPERTIA_DUAL_PROD_ENABLE")
+            )
+        )
+        if dual_habilitado:
             try:
                 from app.recuperacion_dual_dev import buscar_candidatos_duales
                 dual = buscar_candidatos_duales(pregunta, catalogo, limite=3)

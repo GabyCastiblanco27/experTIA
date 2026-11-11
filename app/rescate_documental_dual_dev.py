@@ -12,13 +12,24 @@ import os
 
 
 def _autorizado():
-    return (
-        os.getenv('EXPERTIA_ENTORNO', '').strip().lower() == 'dev'
-        and os.getenv('EXPERTIA_CONFIRMAR_NEON_DEV') == 'SI'
-        and os.getenv('EXPERTIA_DUAL_SOMBRA_DEV') == '1'
-        and os.getenv('EXPERTIA_RESCATE_DUAL_DOCUMENTAL_DEV') == '1'
-        and os.getenv('EXPERTIA_RESCATES_CONSENSO_DEV', '0') == '0'
-    )
+    if os.getenv('EXPERTIA_RESCATES_CONSENSO_DEV', '0') != '0':
+        return False
+    entorno = os.getenv('EXPERTIA_ENTORNO', '').strip().lower()
+    if entorno == 'dev':
+        return (
+            os.getenv('EXPERTIA_CONFIRMAR_NEON_DEV') == 'SI'
+            and os.getenv('EXPERTIA_DUAL_SOMBRA_DEV') == '1'
+            and os.getenv('EXPERTIA_RESCATE_DUAL_DOCUMENTAL_DEV') == '1'
+        )
+    if entorno == 'prod':
+        return (
+            os.getenv('EXPERTIA_API_MOTOR') == 'hibrido'
+            and os.getenv('EXPERTIA_VECTOR_PROD_ENABLE') == '1'
+            and os.getenv('EXPERTIA_DUAL_PROD_ENABLE') == '1'
+            and os.getenv('EXPERTIA_RESCATE_DUAL_PROD_ENABLE') == '1'
+        )
+    return False
+
 
 
 def aplicar_rescate(pregunta, resultado, diagnostico):
@@ -70,12 +81,13 @@ def aplicar_rescate(pregunta, resultado, diagnostico):
             'respuesta_modificada': False,
         }}
     cid = validos[0]
+    es_prod = os.getenv('EXPERTIA_ENTORNO', '').strip().lower() == 'prod'
     diag = {**diagnostico,
-        'decision': 'RESPUESTA_DOCUMENTAL_DUAL_DEV',
+        'decision': 'RESPUESTA_DOCUMENTAL_DUAL_PROD' if es_prod else 'RESPUESTA_DOCUMENTAL_DUAL_DEV',
         'motivo': 'unica_regla_documental_vigente_entre_candidatos_duales',
         'cobertura_certificada': False,
         'cobertura_validada_por_reglas': True,
-        'pendiente_validacion_productiva': True,
+        'pendiente_validacion_productiva': not es_prod,
         'rescate_dual_documental': {
             'estado': 'REGLA_UNICA', 'id_seleccionado': cid,
             'cantidad_reglas_validas': 1,
@@ -83,5 +95,5 @@ def aplicar_rescate(pregunta, resultado, diagnostico):
         },
     }
     respuesta = _resultado_rescate(catalogo[cid], diag)
-    (respuesta.get('resultado') or {}).setdefault('detalle_ranking', {})['metodo'] = 'regla_documental_dual_dev'
+    (respuesta.get('resultado') or {}).setdefault('detalle_ranking', {})['metodo'] = 'regla_documental_dual_prod' if es_prod else 'regla_documental_dual_dev'
     return respuesta, diag
